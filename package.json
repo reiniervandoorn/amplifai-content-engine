@@ -4,10 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "seed": "node scripts/seed.js",
     "test": "node --test test/",
-    "test-mode": "AI_MODE=mock node src/server.js",
-    "sync-preview": "node scripts/sync-preview.js"
+    "test-mode": "AI_MODE=mock node src/server.js"
   },
   "engines": {
     "node": ">=20"
@@ -17,13 +15,12 @@
     "cheerio": "^1.2.0",
     "zod": "^4.6.7"
   },
-  "version": "1.0.0",
-  "description": "Turns a webshop URL into sourced product guide content, with AmplifAI base settings that shops can adjust.",
+  "version": "2.0.0",
+  "description": "Writes sourced content for AmplifAI product guides: the AmplifAI tool sends a product and its settings, the engine returns checked texts.",
   "main": "src/app.js",
   "exports": {
     ".": "./src/app.js",
     "./client": "./clients/js/amplifai-content.js",
-    "./store": "./src/store.js",
-    "./settings": "./src/settings.js"
+    "./store": "./src/store.js"
   }
 }

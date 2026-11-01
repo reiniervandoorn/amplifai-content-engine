@@ -1,8 +1,8 @@
-// Catalog discovery and product-page extraction. No LLM here: only what the shop itself publishes.
+// Reads one product page: structured data first, readable text second. No LLM here: only what the shop
+// itself publishes, used to fill in what the tool did not send.
 import * as cheerio from 'cheerio';
 
 const UA = 'Mozilla/5.0 (compatible; AmplifAI-ContentEngine/0.1; +https://amplifai.nl)';
-const MAX_PRODUCTS = 2000;
 
 export function normalizeUrl(input) {
   let s = String(input || '').trim();
@@ -50,11 +50,11 @@ async function getJson(url) {
   } catch { return null }
 }
 
-/* ── robots.txt: honour Disallow rules for all user agents, and read the sitemaps it lists ── */
+/* ── robots.txt: honour Disallow rules for all user agents ── */
 const robotsCache = new Map();
 async function robots(origin) {
   if (robotsCache.has(origin)) return robotsCache.get(origin);
-  const r = { disallow: [], allow: [], sitemaps: [] };
+  const r = { disallow: [], allow: [] };
   try {
     const { text } = await getText(origin + '/robots.txt', { accept: 'text/plain' });
     let applies = false;
@@ -64,7 +64,6 @@ async function robots(origin) {
       if (!m) continue;
       const k = m[1].toLowerCase(), v = m[2].trim();
       if (k === 'user-agent') applies = v === '*';
-      else if (k === 'sitemap') r.sitemaps.push(v);
       else if (applies && k === 'disallow' && v) r.disallow.push(v);
       else if (applies && k === 'allow' && v) r.allow.push(v);
     }
@@ -84,143 +83,12 @@ export async function allowed(url) {
   return !!al && al.length >= dis.length;
 }
 
-/* ── shop identity: name, colour, logo ── */
-function shopInfo($, url) {
-  const u = new URL(url);
-  const site = $('meta[property="og:site_name"]').attr('content');
-  const title = ($('title').first().text() || '').split(/\s[|–—-]\s/).pop();
-  const fromDomain = u.hostname.replace(/^www\./, '').split('.')[0].replace(/^./, c => c.toUpperCase());
-  // bot walls and SEO titles make poor shop names; the domain is safer then
-  let name = (site || title || '').trim();
-  if (!name || name.length > 28 || /verification|just a moment|attention required|access denied|captcha/i.test(name)) name = fromDomain;
-  const theme = $('meta[name="theme-color"]').attr('content');
-  const icon = $('link[rel~="apple-touch-icon"]').attr('href') || $('link[rel~="icon"]').attr('href');
-  return {
-    name, domain: u.hostname.replace(/^www\./, ''),
-    accent: usableAccent(theme),
-    logo: icon ? new URL(icon, url).href : null,
-  };
-}
-
-// a theme colour only counts when white text stays readable on it
-function usableAccent(hex) {
-  if (!/^#[0-9a-f]{6}$/i.test(hex || '')) return null;
-  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4);
-  const L = .2126 * r + .7152 * g + .0722 * b;
-  return L > .02 && L < .3 ? hex : null;
-}
 const money = (amount, cur) => {
   if (amount == null || amount === '') return null;
   const n = Number(amount);
   if (!isFinite(n)) return String(amount);
   const sym = { EUR: '€', USD: '$', GBP: '£' }[cur || 'EUR'] || (cur + ' ');
   return sym + n.toFixed(2).replace('.', ',');
-};
-
-/* ── platform catalogs ── */
-async function shopifyCatalog(origin) {
-  const out = [];
-  for (let page = 1; page <= 8 && out.length < MAX_PRODUCTS; page++) {
-    const j = await getJson(`${origin}/products.json?limit=250&page=${page}`);
-    if (!j || !Array.isArray(j.products)) return page === 1 ? null : out;
-    if (!j.products.length) break;
-    for (const p of j.products) {
-      const url = `${origin}/products/${p.handle}`, desc = cheerio.load(p.body_html || '').text().replace(/\s+/g, ' ').trim();
-      out.push({
-        url, name: p.title, brand: p.vendor || null,
-        price: null, // products.json has no currency; research reads it from the page
-        image: p.images?.[0]?.src || null, type: p.product_type || null,
-        // everything the engine needs, so the product page itself need not be fetched
-        page: { url, name: p.title, brand: p.vendor || null, category: p.product_type || null, price: null, image: p.images?.[0]?.src || null,
-          description: desc.slice(0, 4000), descriptionHtml: desc.slice(0, 8000), variants: (p.variants || []).map(v => v.title).filter(t => t && t !== 'Default Title').slice(0, 20),
-          properties: (p.options || []).filter(o => o.name !== 'Title').map(o => `${o.name}: ${(o.values || []).join(', ')}`).slice(0, 10), pageText: desc.slice(0, 24000) },
-      });
-    }
-  }
-  return out;
-}
-async function wooCatalog(origin) {
-  const out = [];
-  for (let page = 1; page <= 20 && out.length < MAX_PRODUCTS; page++) {
-    const j = await getJson(`${origin}/wp-json/wc/store/v1/products?per_page=100&page=${page}`);
-    if (!Array.isArray(j)) return page === 1 ? null : out;
-    if (!j.length) break;
-    for (const p of j) {
-      const name = cheerio.load(p.name || '').text(), desc = cheerio.load((p.description || '') + ' ' + (p.short_description || '')).text().replace(/\s+/g, ' ').trim();
-      const price = p.prices?.price ? money(Number(p.prices.price) / 10 ** (p.prices.currency_minor_unit ?? 2), p.prices.currency_code) : null;
-      out.push({
-        url: p.permalink, name, brand: p.brands?.[0]?.name || null, price, image: p.images?.[0]?.src || null, type: p.categories?.[0]?.name || null,
-        page: { url: p.permalink, name, brand: p.brands?.[0]?.name || null, category: p.categories?.[0]?.name || null, price, image: p.images?.[0]?.src || null,
-          description: desc.slice(0, 4000), descriptionHtml: desc.slice(0, 8000), variants: [], properties: (p.attributes || []).map(a => `${a.name}: ${(a.terms || []).map(t => t.name).join(', ')}`).slice(0, 10), pageText: desc.slice(0, 24000) },
-      });
-    }
-  }
-  return out;
-}
-
-/* ── sitemap fallback: works for most other platforms ── */
-const PRODUCTISH = /\/(products?|produkt|produit|p|artikel|item|shop)\/|[-/]p\d{3,}|\/\d{5,}|\.html$/i;
-const NOT_PRODUCT = /\/(blog|news|nieuws|pages?|category|categorie|collections?|tag|brand|merken|klantenservice|service|account|cart|winkelwagen|checkout|search|zoeken)\b/i;
-
-async function sitemapCatalog(origin) {
-  const r = await robots(origin);
-  const queue = [...new Set([...r.sitemaps, `${origin}/sitemap.xml`, `${origin}/sitemap_index.xml`])];
-  const seen = new Set(), urls = [];
-  while (queue.length && seen.size < 25 && urls.length < MAX_PRODUCTS * 2) {
-    const sm = queue.shift();
-    if (seen.has(sm)) continue;
-    seen.add(sm);
-    let xml;
-    try { xml = (await getText(sm, { accept: 'application/xml,text/xml' })).text } catch { continue }
-    const $ = cheerio.load(xml, { xmlMode: true });
-    const children = $('sitemapindex > sitemap > loc').map((_, e) => $(e).text().trim()).get();
-    if (children.length) {
-      // product sitemaps first
-      children.sort((a, b) => (/product/i.test(b) ? 1 : 0) - (/product/i.test(a) ? 1 : 0));
-      queue.unshift(...children.filter(c => /product/i.test(c)));
-      queue.push(...children.filter(c => !/product/i.test(c)));
-      continue;
-    }
-    const isProductMap = /product/i.test(sm);
-    $('urlset > url').each((_, e) => {
-      const loc = $(e).children('loc').text().trim();
-      if (!loc) return;
-      const path = new URL(loc, origin).pathname;
-      if (path === '/' || NOT_PRODUCT.test(path)) return;
-      if (!isProductMap && !PRODUCTISH.test(path)) return;
-      const img = $(e).find('image\\:loc, loc').filter((i, x) => x.tagName !== 'loc').first().text().trim();
-      urls.push({ url: loc, name: nameFromSlug(path), brand: null, price: null, image: img || null, type: null });
-    });
-  }
-  return urls.slice(0, MAX_PRODUCTS);
-}
-function nameFromSlug(path) {
-  const seg = decodeURIComponent(path.split('/').filter(Boolean).pop() || '').replace(/\.html?$/, '').replace(/[-_]+/g, ' ').replace(/\b\d{5,}\b/g, '').trim();
-  return seg.charAt(0).toUpperCase() + seg.slice(1);
-}
-
-export async function catalog(input) {
-  const u = normalizeUrl(input);
-  const home = await getText(u.origin + '/').catch(() => getText(u.href));
-  const $ = cheerio.load(home.text);
-  const shop = shopInfo($, home.url);
-  const origin = new URL(home.url).origin;
-  let platform = 'sitemap', products = await shopifyCatalog(origin);
-  if (products) platform = 'shopify';
-  else if ((products = await wooCatalog(origin))) platform = 'woocommerce';
-  else products = await sitemapCatalog(origin);
-  // a pasted product URL always shows up, even when discovery missed it
-  if (u.pathname !== '/' && !products.some(p => p.url.replace(/\/$/, '') === u.href.replace(/\/$/, ''))) {
-    try { const p = await product(u.href); products.unshift({ url: p.url, name: p.name, brand: p.brand, price: p.price, image: p.image, type: p.category }) } catch { }
-  }
-  const dedup = new Map();
-  for (const p of products) if (!dedup.has(p.url)) dedup.set(p.url, p);
-  return { shop, platform, products: [...dedup.values()].map(p => ({ id: slugOf(p.url), ...p })), fetchedAt: new Date().toISOString() };
-}
-
-export const slugOf = url => {
-  const u = new URL(url);
-  return (u.hostname.replace(/^www\./, '') + u.pathname).toLowerCase().replace(/\.html?$/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 120);
 };
 
 /* ── one product page: structured data first, readable text second ── */

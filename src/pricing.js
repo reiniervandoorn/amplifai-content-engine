@@ -1,6 +1,5 @@
-// What things cost. Two different prices live here:
-//   1. What a shop pays AmplifAI: a price per order, per quality level (tier). Shops only ever see this.
-//   2. What AmplifAI pays Anthropic: per token and per web search. Only AmplifAI sees this.
+// What AmplifAI pays Anthropic: per token and per web search. What a shop pays AmplifAI is the
+// tool's business; the engine only knows its own costs.
 
 // Anthropic list prices in USD (per million tokens; web search per 1,000 searches).
 export const MODELS = {
@@ -12,16 +11,16 @@ export const MODELS = {
 export const SEARCH_PER_1000 = 10;
 export const EUR_PER_USD = Number(process.env.EUR_PER_USD) || 0.92;
 
-// The three quality levels. AmplifAI may rename them, pick their model and set their price.
-export const TIER_IDS = ['basis', 'plus', 'premium'];
-export const DEFAULT_TIERS = {
-  basis:   { name: 'Basis',   model: 'claude-sonnet-5-5', pricePerOrder: 0.05, blurb: 'Heldere, onderbouwde gidsen voor elk product' },
-  plus:    { name: 'Plus',    model: 'claude-opus-5-5',   pricePerOrder: 0.10, blurb: 'Rijkere verhalen en scherpere tips' },
-  premium: { name: 'Premium', model: 'claude-fable-5-1',  pricePerOrder: 0.13, blurb: 'Het diepste onderzoek en de beste teksten' },
+// The three quality levels the tool can ask for. AmplifAI picks the model behind each in the admin page.
+export const LEVEL_IDS = ['basis', 'plus', 'premium'];
+export const DEFAULT_LEVELS = {
+  basis:   { name: 'Basis',   model: 'claude-sonnet-5-5', blurb: 'Heldere, onderbouwde teksten voor elk product' },
+  plus:    { name: 'Plus',    model: 'claude-opus-5-5',   blurb: 'Rijkere verhalen en scherpere tips' },
+  premium: { name: 'Premium', model: 'claude-fable-5-1',  blurb: 'Het diepste onderzoek en de beste teksten' },
 };
 
 // Tokens one product typically uses, before real usage is known (two languages; more languages, more output).
-const TYPICAL = { research: { input: 45000, output: 7000, searches: 6 }, write: { input: 9000, output: 11000 } };
+const TYPICAL = { research: { input: 45000, output: 7000, searches: 6 }, write: { input: 9000, output: 12000 } };
 
 export const usd = (model, u) => {
   const m = MODELS[model] || MODELS['claude-opus-5-5'];
@@ -29,10 +28,10 @@ export const usd = (model, u) => {
 };
 export const eur = n => Math.round(n * EUR_PER_USD * 10000) / 10000;
 
-// Estimated cost to write one product's guide with a model. Uses the average of real products
-// written with that model once there are a few, and the typical numbers until then.
+// Estimated cost of one product's content with a model. Uses the average of real runs with that
+// model once there are a few, and the typical numbers until then.
 export function perProduct(model, samples = [], languages = 2) {
-  const real = samples.filter(s => s.model === model && s.complete);
+  const real = samples.filter(s => s.model === model);
   if (real.length >= 3) {
     const avg = real.reduce((a, s) => a + s.usd, 0) / real.length;
     return { usd: avg, eur: eur(avg), basedOn: real.length };

@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Content engine · Beheer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f5f5f7;--card:#fff;--ink:#1d1d1f;--mute:#6e6e73;--line:#e5e5ea;--accent:#0071e3;--ok:#1f8a4c;--warn:#b25e00;--bad:#c62828;--soft:#f0f0f3;--r:14px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:920px;margin:0 auto;padding:28px 16px 80px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:22px;flex-wrap:wrap}
+h1{font-size:22px;font-weight:600;margin:0;letter-spacing:-.01em}
+h2{font-size:16px;font-weight:600;margin:0 0 4px}
+p{margin:0 0 10px}
+.mute{color:var(--mute)}
+.small{font-size:13px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:99px;background:var(--soft);color:var(--mute)}
+.pill.live{background:#e7f6ec;color:var(--ok)}
+.pill.test{background:#eef4ff;color:var(--accent)}
+.card{background:var(--card);border-radius:var(--r);padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+label.f{display:block;font-size:13px;color:var(--mute)}
+label.f input,label.f select,label.f textarea{margin-top:4px}
+input,select,textarea{width:100%;font:inherit;color:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff}
+textarea{min-height:76px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid #0071e333;border-color:var(--accent)}
+button{font:inherit;font-weight:500;border:0;border-radius:99px;padding:9px 16px;cursor:pointer;background:var(--soft);color:var(--ink)}
+button.primary{background:var(--accent);color:#fff}
+button.danger{background:#fdecec;color:var(--bad)}
+button:disabled{opacity:.5;cursor:default}
+.seg{display:inline-flex;background:var(--soft);border-radius:99px;padding:3px}
+.seg button{background:transparent;padding:6px 14px}
+.seg button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.meter{height:6px;background:var(--soft);border-radius:9px;overflow:hidden;margin:6px 0 2px}
+.meter i{display:block;height:100%;background:var(--accent);border-radius:9px}
+.meter.full i{background:var(--bad)}
+.key{display:flex;gap:8px;align-items:center}
+.key code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--soft);padding:8px 10px;border-radius:10px;font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-weight:500;color:var(--mute);font-size:12px}
+.scroll{overflow-x:auto}
+.checks{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
+.checks label{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--ink)}
+.checks input{width:auto}
+.note{padding:10px 12px;border-radius:10px;background:var(--soft);font-size:14px;margin:10px 0}
+.note.bad{background:#fdecec;color:var(--bad)}
+.note.warn{background:#fff4e5;color:var(--warn)}
+.piece{border-top:1px solid var(--line);padding:12px 0}
+.piece:first-child{border-top:0}
+.piece .head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.piece .path{font:12px ui-monospace,Menlo,monospace;color:var(--mute)}
+.piece .edit{font-size:13px;padding:4px 10px}
+.piece ul{margin:6px 0 0;padding-left:18px}
+.piece b{font-weight:600}
+.src{font-size:12px;color:var(--accent);vertical-align:super}
+.issue{font-size:13px}
+.issue.error{color:var(--bad)}
+.issue.warn{color:var(--warn)}
+.wish{display:flex;gap:8px;margin-top:8px}
+pre{background:#1d1d1f;color:#f5f5f7;padding:14px;border-radius:12px;overflow:auto;font-size:12px;max-height:420px}
+.progress{font-size:13px;color:var(--mute)}
+.hide{display:none!important}
+@media (max-width:560px){.wish{flex-direction:column}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Content engine</h1>
+    <span id="modePill" class="pill">…</span>
+    <span class="mute small" style="margin-left:auto">Alleen voor AmplifAI</span>
+  </header>
+
+  <section id="login" class="card hide">
+    <h2>Inloggen</h2>
+    <p class="mute">Met de admin-sleutel. Op je eigen computer staat die in <code>data/admin-key.txt</code>.</p>
+    <div class="row">
+      <input id="adminKey" type="password" placeholder="ak_…" style="flex:1;min-width:200px">
+      <button class="primary" id="loginBtn">Inloggen</button>
+    </div>
+    <p id="loginErr" class="note bad hide"></p>
+  </section>
+
+  <div id="app" class="hide">
+    <section class="card">
+      <h2>Test of live</h2>
+      <p class="mute small">In testmodus schrijft de engine vaste testteksten: gratis, zonder Anthropic. Live schrijft Claude echte teksten, binnen de grenzen hieronder. De testsleutel van de tool krijgt altijd testteksten.</p>
+      <div class="row" style="margin-bottom:14px">
+        <div class="seg" id="modeSeg"><button data-mode="test">Test</button><button data-mode="live">Live</button></div>
+        <button class="danger" id="stopBtn">Noodstop</button>
+      </div>
+      <label class="f">Anthropic API-sleutel <span id="keyHint" class="mute"></span>
+        <div class="row" style="margin-top:4px"><input id="anthropicKey" type="password" placeholder="sk-ant-…" style="flex:1;min-width:200px"><button id="keyBtn">Opslaan</button></div>
+      </label>
+      <p id="aiMsg" class="note hide"></p>
+    </section>
+
+    <section class="card">
+      <h2>Uitgaven bij Anthropic</h2>
+      <p class="mute small">Vaste grenzen. Elke aanroep van Claude controleert ze eerst; bij de grens stopt de engine vóór de volgende aanroep. Zet ook een maandlimiet op de sleutel zelf in de Anthropic Console.</p>
+      <div class="grid" id="spend"></div>
+      <div class="grid" style="margin-top:14px">
+        <label class="f">Per dag (€)<input type="number" min="0" step="0.5" data-budget="dayEUR"></label>
+        <label class="f">Per maand (€)<input type="number" min="0" step="1" data-budget="monthEUR"></label>
+        <label class="f">Per product (€)<input type="number" min="0" step="0.1" data-budget="productEUR"></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Kwaliteitsniveaus</h2>
+      <p class="mute small">De tool vraagt om een niveau; hier kies je het model erachter. Kosten per product zijn een schatting tot er drie echte runs zijn.</p>
+      <div class="scroll"><table><thead><tr><th>Niveau</th><th>Model</th><th>≈ per product</th></tr></thead><tbody id="levels"></tbody></table></div>
+    </section>
+
+    <section class="card">
+      <h2>Koppeling met de tool</h2>
+      <p class="mute small">De tool stuurt een product met de instellingen van de shop en krijgt de teksten terug. Zie HANDOVER.md.</p>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:10px">
+        <div><div class="small mute">Engine-adres</div><div class="key"><code id="baseUrl"></code><button data-copy="baseUrl">Kopieer</button></div></div>
+        <div><div class="small mute">Testsleutel: altijd testteksten, gratis. Om mee te bouwen.</div><div class="key"><code id="testKey"></code><button data-copy="testKey">Kopieer</button></div></div>
+        <div><div class="small mute">Toolsleutel: echt, voor productie. Alleen op de server van de tool.</div><div class="key"><code id="toolKey"></code><button data-copy="toolKey">Kopieer</button></div></div>
+        <div><div class="small mute">Geheim om meldingen (callbackUrl) te controleren</div><div class="key"><code id="cbSecret"></code><button data-copy="cbSecret">Kopieer</button></div></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Proberen</h2>
+      <p class="mute small">Dezelfde aanroep die de tool doet. Vul een productpagina in; wat je leeg laat, leest de engine van de pagina.</p>
+      <div class="grid">
+        <label class="f" style="grid-column:1/-1">Productpagina (url)<input id="pUrl" placeholder="https://shop.nl/products/…"></label>
+        <label class="f">Naam<input id="pName"></label>
+        <label class="f">Merk<input id="pBrand"></label>
+        <label class="f">Webshop<input id="sName" placeholder="Naam van de shop"></label>
+        <label class="f" style="grid-column:1/-1">Beschrijving<textarea id="pDesc"></textarea></label>
+        <label class="f">Toon<select id="sTone"></select></label>
+        <label class="f">Aanspreekvorm<select id="sForm"></select></label>
+        <label class="f">Kwaliteit<select id="sQuality"></select></label>
+        <label class="f">Lengte<select id="sLength"></select></label>
+        <label class="f" style="grid-column:1/-1">Stijlwens<input id="sStyle" placeholder="Bijv. kort en zakelijk"></label>
+      </div>
+      <div class="checks" id="sLangs"></div>
+      <div class="checks"><label><input type="checkbox" id="useTest" checked> Gratis testteksten (met de testsleutel)</label></div>
+      <div class="row" style="margin-top:14px"><button class="primary" id="writeBtn">Schrijf de teksten</button><span id="costLine" class="small mute"></span></div>
+      <p id="tryMsg" class="note hide"></p>
+      <div id="progress" class="progress"></div>
+      <div id="result" class="hide" style="margin-top:14px">
+        <div class="row" style="justify-content:space-between">
+          <div class="seg" id="langSeg"></div>
+          <div class="row"><span id="resMeta" class="small mute"></span><button id="jsonBtn">JSON</button></div>
+        </div>
+        <div id="quality"></div>
+        <pre id="json" class="hide"></pre>
+        <div id="pieces"></div>
+        <h2 style="margin-top:16px">Bronnen</h2>
+        <div id="sources" class="small"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Laatste taken</h2>
+      <div class="scroll"><table><thead><tr><th>Wanneer</th><th>Soort</th><th>Product</th><th>Status</th><th>Kosten</th></tr></thead><tbody id="recent"></tbody></table></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const euro = n => '€' + Number(n || 0).toFixed(2).replace('.', ',');
+const base = location.origin + location.pathname.replace(/\/admin\/?$/, '');
+let key = null, st = null, opts = null, current = null, lang = null;
+try { key = sessionStorage.getItem('ce-admin') } catch { }
+
+async function api(method, path, body, k = key) {
+  const r = await fetch(base + path, { method, headers: { authorization: 'Bearer ' + k, ...(body && { 'content-type': 'application/json' }) }, body: body && JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(data.error || 'HTTP ' + r.status), { status: r.status, code: data.code });
+  return data;
+}
+const say = (el, msg, kind = '') => { el.className = 'note ' + kind; el.textContent = msg; el.classList.toggle('hide', !msg) };
+
+async function start() {
+  if (!key) { try { key = (await (await fetch(base + '/v1/dev/login')).json()).adminKey || null } catch { } }
+  if (!key) return showLogin();
+  try { st = await api('GET', '/v1/admin/status'); opts = await api('GET', '/v1/options') }
+  catch (e) { if (e.status === 401 || e.status === 403) { key = null; return showLogin(e.message) } throw e }
+  try { sessionStorage.setItem('ce-admin', key) } catch { }
+  $('#login').classList.add('hide'); $('#app').classList.remove('hide');
+  fillForm(); render();
+}
+function showLogin(err) { $('#login').classList.remove('hide'); $('#app').classList.add('hide'); say($('#loginErr'), err || '', 'bad') }
+$('#loginBtn').onclick = () => { key = $('#adminKey').value.trim(); start() };
+
+function render() {
+  const live = st.mode === 'live';
+  $('#modePill').className = 'pill ' + st.mode; $('#modePill').textContent = live ? 'Live' : 'Test';
+  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === st.mode));
+  $('#keyHint').textContent = st.keyHint ? `(${st.keyHint})` : st.fromEnv ? '(uit ANTHROPIC_API_KEY)' : '(nog geen)';
+  const b = st.budget;
+  const meter = (label, spent, max) => `<div><div class="small mute">${label}</div><b>${euro(spent)}</b> <span class="mute small">van ${euro(max)}</span><div class="meter ${spent >= max ? 'full' : ''}"><i style="width:${Math.min(100, max ? spent / max * 100 : 100)}%"></i></div></div>`;
+  $('#spend').innerHTML = meter('Vandaag', b.todayEUR, b.dayEUR) + meter('Deze maand', b.monthSpentEUR, b.monthEUR) + `<div><div class="small mute">Totaal ooit</div><b>${euro(st.totalEUR)}</b></div>`;
+  document.querySelectorAll('[data-budget]').forEach(i => { if (document.activeElement !== i) i.value = b[i.dataset.budget] });
+  $('#levels').innerHTML = st.levels.map(l => `<tr><td><b>${esc(l.name)}</b><div class="small mute">${esc(l.blurb)}</div></td>
+    <td><select data-level="${l.id}">${st.models.map(m => `<option value="${m.id}" ${m.id === l.model ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></td>
+    <td>${euro(l.perProductEUR)}<div class="small mute">${l.basedOn ? `gemiddelde van ${l.basedOn} runs` : 'schatting'}</div></td></tr>`).join('');
+  $('#baseUrl').textContent = base; $('#testKey').textContent = st.keys.test || '—'; $('#toolKey').textContent = st.keys.tool || '—'; $('#cbSecret').textContent = st.keys.callbackSecret;
+  $('#recent').innerHTML = st.recent.length ? st.recent.map(j => `<tr><td class="small">${new Date(j.createdAt).toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'short' })}</td>
+    <td>${j.kind === 'revise' ? 'wijziging' : 'schrijven'}${j.test ? ' <span class="pill">test</span>' : ''}</td><td>${esc(j.product || j.reference || '')}</td>
+    <td class="${j.status === 'failed' ? 'issue error' : ''}">${esc({ done: 'klaar', failed: 'mislukt', working: 'bezig', queued: 'wacht', cancelled: 'geannuleerd' }[j.status] || j.status)}${j.error ? `<div class="small">${esc(j.error)}</div>` : ''}</td>
+    <td>${j.costEUR == null ? '' : euro(j.costEUR)}</td></tr>`).join('') : '<tr><td colspan="5" class="mute">Nog niets</td></tr>';
+  costLine();
+}
+
+document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = async () => {
+  if (b.dataset.mode === 'live' && !confirm('Live zetten? Dan schrijft Claude echte teksten en kost elk product geld, binnen de grenzen.')) return;
+  try { st = await api('PUT', '/v1/admin/ai', { mode: b.dataset.mode }); say($('#aiMsg'), ''); render() } catch (e) { say($('#aiMsg'), e.message, 'bad') }
+});
+$('#stopBtn').onclick = async () => {
+  if (!confirm('Noodstop: alles terug naar testmodus en wachtende taken annuleren?')) return;
+  const r = await api('POST', '/v1/admin/stop');
+  say($('#aiMsg'), `Gestopt. ${r.cancelled} wachtende taken geannuleerd${r.stillRunning ? `, ${r.stillRunning} lopende stoppen bij hun volgende stap` : ''}.`);
+  st = await api('GET', '/v1/admin/status'); render();
+};
+$('#keyBtn').onclick = async () => {
+  const k = $('#anthropicKey').value.trim();
+  if (!k) return;
+  say($('#aiMsg'), 'Sleutel controleren…');
+  try { st = await api('PUT', '/v1/admin/ai', { key: k }); $('#anthropicKey').value = ''; say($('#aiMsg'), 'Sleutel opgeslagen en werkt.'); render() } catch (e) { say($('#aiMsg'), e.message, 'bad') }
+};
+document.addEventListener('change', async e => {
+  const t = e.target;
+  if (t.dataset.budget) { try { st = await api('PATCH', '/v1/admin/settings', { budget: { [t.dataset.budget]: Number(t.value) } }); render() } catch (err) { alert(err.message) } }
+  if (t.dataset.level) { st = await api('PATCH', '/v1/admin/settings', { levels: { [t.dataset.level]: { model: t.value } } }); render() }
+  if (['sQuality', 'useTest'].includes(t.id) || t.closest('#sLangs')) costLine();
+});
+document.addEventListener('click', e => {
+  const c = e.target.closest('[data-copy]');
+  if (c) { navigator.clipboard.writeText($('#' + c.dataset.copy).textContent); c.textContent = 'Gekopieerd'; setTimeout(() => c.textContent = 'Kopieer', 1200) }
+});
+
+/* ── trying it ── */
+function fillForm() {
+  const s = opts.settings, sel = (id, f, labels = {}) => { $(id).innerHTML = f.options.map(o => `<option value="${o}" ${o === f.default ? 'selected' : ''}>${labels[o] || o}</option>`).join('') };
+  sel('#sTone', s.tone, { warm: 'Warm', neutral: 'Neutraal', expert: 'Deskundig', playful: 'Speels' });
+  sel('#sForm', s.formality, { informal: 'je / jouw', formal: 'u / uw' });
+  sel('#sLength', s.length, { standard: 'Standaard', short: 'Kort' });
+  $('#sQuality').innerHTML = opts.qualities.map(q => `<option value="${q.id}">${esc(q.name)}</option>`).join('');
+  $('#sLangs').innerHTML = s.languages.options.map(l => `<label><input type="checkbox" value="${l}" ${s.languages.default.includes(l) ? 'checked' : ''}> ${esc(opts.languages[l])}</label>`).join('');
+}
+const langsPicked = () => [...document.querySelectorAll('#sLangs input:checked')].map(i => i.value);
+function costLine() {
+  if (!opts) return;
+  const free = $('#useTest').checked || st.mode !== 'live';
+  const q = opts.qualities.find(x => x.id === $('#sQuality').value);
+  $('#costLine').textContent = free ? 'Gratis: testteksten' : `≈ ${euro(q.estimatedCostEUR * Math.max(1, langsPicked().length / 2))} bij Anthropic · nog ${euro(st.budget.dayLeftEUR)} budget vandaag`;
+}
+const callKey = () => $('#useTest').checked ? st.keys.test : key;
+
+async function follow(job) {
+  while (['queued', 'working'].includes(job.status)) {
+    $('#progress').textContent = job.progress?.at(-1)?.msg || 'Bezig…';
+    await new Promise(r => setTimeout(r, 1000));
+    job = await api('GET', '/v1/content/' + job.id, null, callKey());
+  }
+  $('#progress').textContent = '';
+  if (job.status !== 'done') throw new Error(job.error || job.status);
+  return job;
+}
+
+$('#writeBtn').onclick = async () => {
+  const product = Object.fromEntries(Object.entries({ url: $('#pUrl').value.trim(), name: $('#pName').value.trim(), brand: $('#pBrand').value.trim(), description: $('#pDesc').value.trim() }).filter(([, v]) => v));
+  const settings = { languages: langsPicked(), tone: $('#sTone').value, formality: $('#sForm').value, quality: $('#sQuality').value, length: $('#sLength').value, ...($('#sStyle').value.trim() && { style: $('#sStyle').value.trim() }) };
+  if (!$('#useTest').checked && st.mode === 'live' && !confirm($('#costLine').textContent + '\n\nDoorgaan?')) return;
+  say($('#tryMsg'), ''); $('#writeBtn').disabled = true;
+  try {
+    const job = await follow(await api('POST', '/v1/content', { product, shop: { name: $('#sName').value.trim() || null }, settings, reference: 'beheerpagina' }, callKey()));
+    current = job.result; lang = current.languages[0]; showResult();
+  } catch (e) { say($('#tryMsg'), e.message, 'bad') }
+  finally { $('#writeBtn').disabled = false; st = await api('GET', '/v1/admin/status'); render() }
+};
+
+const t = v => v && typeof v === 'object' && !Array.isArray(v) ? v[lang] ?? '' : v ?? '';
+const cite = src => src?.length ? ` <span class="src">${src.map(esc).join(',')}</span>` : '';
+const LABELS = Object.fromEntries([['shortName', 'Korte naam'], ['intro', 'Intro'], ['story', 'Merkverhaal'], ['special', 'Bijzonder'], ['expect', 'Wat is normaal'], ['fact', 'Feit'], ['care', 'Onderhoud'],
+  ['experience', 'Ervaringsvraag'], ['question', 'Vraag'], ['tips', 'Tips'], ['whileYouWait', 'Verzendmail'], ['firstMinutes', 'Bezorgmail']]);
+function pieceHTML(path, label, body) {
+  const issues = current.quality.issues.filter(i => i.piece === path);
+  return `<div class="piece" data-piece="${path}"><div class="head"><div><b>${esc(label)}</b> <span class="path">${path}</span></div><button class="edit">Wijzig</button></div>
+    ${body}${issues.map(i => `<div class="issue ${i.level}">${esc(i.message)}</div>`).join('')}</div>`;
+}
+const tipHTML = x => `<b>${esc(t(x.title || x.lead))}</b> ${esc(t(x.text))}${cite(x.src)}`;
+function showResult() {
+  const c = current.content;
+  $('#result').classList.remove('hide');
+  $('#langSeg').innerHTML = current.languages.map(l => `<button data-lang="${l}" class="${l === lang ? 'on' : ''}">${l.toUpperCase()}</button>`).join('');
+  $('#resMeta').textContent = `${current.test ? 'testteksten' : euro(current.costEUR)} · ${current.sources.filter(s => s.used).length} bronnen gebruikt`;
+  const q = current.quality;
+  $('#quality').innerHTML = `<div class="note ${q.errors ? 'bad' : q.warnings ? 'warn' : ''}">${q.errors ? `${q.errors} regel(s) overtreden` : 'Voldoet aan de AmplifAI-regels'}${q.warnings ? ` · ${q.warnings} opmerking(en)` : ''}</div>`;
+  $('#json').textContent = JSON.stringify(current, null, 2);
+  const P = [];
+  P.push(pieceHTML('intro', 'Intro', `<div><b>${esc(t(c.intro.title))}</b></div><div>${esc(t(c.intro.headline))}</div><div class="small mute">Uitnodiging: ${esc(t(c.intro.teaser.headline))} · ${esc(t(c.intro.teaser.line))}</div>`));
+  P.push(pieceHTML('story', 'Merkverhaal', `<div>${esc(t(c.story.text))}${cite(c.story.src)}</div>`));
+  c.special.forEach((x, i) => P.push(pieceHTML(`special.${i}`, 'Bijzonder', `<div>${tipHTML(x)}</div>`)));
+  c.expect.forEach((x, i) => P.push(pieceHTML(`expect.${i}`, 'Wat is normaal', `<div>${tipHTML(x)}</div>`)));
+  P.push(pieceHTML('fact', 'Feit', `<div>${esc(t(c.fact.text))}${cite(c.fact.src)}</div>`));
+  c.care.forEach((x, i) => P.push(pieceHTML(`care.${i}`, 'Onderhoud', `<div>${tipHTML(x)}</div>`)));
+  P.push(pieceHTML('experience', 'Ervaringsvraag', `<div><b>${esc(t(c.experience.question))}</b></div><div class="small mute">${['new', 'regular', 'expert'].map(k => esc(t(c.experience[k]))).join(' · ')}</div>`));
+  P.push(pieceHTML('question', 'Vraag', `<div class="small mute">${esc(t(c.question.eyebrow))}</div><div><b>${esc(t(c.question.title))}</b> ${esc(t(c.question.sub))}</div>`));
+  c.question.options.forEach((o, i) => P.push(pieceHTML(`question.options.${i}`, 'Antwoord: ' + t(o.label), `<div>${esc(t(o.result.headline))}. ${o.result.lines.map(l => esc(t(l))).join(' ')}${cite(o.src)}</div><div class="small">Tip: <b>${esc(t(o.tip.title))}</b> ${esc(t(o.tip.text))} <span class="mute">(${esc(t(o.tip.why))})</span></div>`)));
+  for (const [lv, name] of [['new', 'Tip · nieuw'], ['regular', 'Tip · ervaren'], ['expert', 'Tip · expert']]) c.tips[lv].forEach((x, i) => P.push(pieceHTML(`tips.${lv}.${i}`, name, `<div>${tipHTML(x)}</div>`)));
+  for (const k of ['whileYouWait', 'firstMinutes']) P.push(pieceHTML(k, LABELS[k] + ': ' + t(c[k].title), `<ul>${c[k].items.map(x => `<li>${tipHTML(x)}</li>`).join('')}</ul>`));
+  $('#pieces').innerHTML = P.join('');
+  $('#sources').innerHTML = current.sources.map(s => `<div style="margin:4px 0"><span class="src">${esc(s.id)}</span> ${esc(s.claim)} ${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a>` : ''}${s.used ? '' : ' <span class="mute">(niet gebruikt)</span>'}</div>`).join('');
+}
+$('#langSeg').onclick = e => { const b = e.target.closest('[data-lang]'); if (b) { lang = b.dataset.lang; showResult() } };
+$('#jsonBtn').onclick = () => $('#json').classList.toggle('hide');
+$('#pieces').onclick = async e => {
+  const p = e.target.closest('.piece');
+  if (!p) return;
+  if (e.target.classList.contains('edit')) {
+    if (p.querySelector('.wish')) return p.querySelector('.wish').remove();
+    p.insertAdjacentHTML('beforeend', `<div class="wish"><input placeholder="Wat moet er anders? Bijv. korter, of noem dat hij waterdicht is"><button class="primary">Herschrijf</button></div>`);
+    return p.querySelector('.wish input').focus();
+  }
+  if (e.target.matches('.wish button')) {
+    const wish = p.querySelector('.wish input').value.trim();
+    e.target.disabled = true;
+    try {
+      const job = await follow(await api('POST', '/v1/content/revise', { content: current, piece: p.dataset.piece, wish }, callKey()));
+      current = job.result; showResult();
+    } catch (err) { say($('#tryMsg'), err.message, 'bad'); e.target.disabled = false }
+  }
+};
+start().catch(e => showLogin(e.message));
+</script>
+</body>
+</html>

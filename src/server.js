@@ -29,25 +29,25 @@ function secretFile(name, prefix) {
 const adminKey = env.ADMIN_API_KEY || secretFile('admin-key.txt', 'ak_');
 const toolKey = env.TOOL_API_KEY || secretFile('tool-key.txt', 'tk_');
 const toolTestKey = env.TOOL_TEST_KEY || secretFile('tool-test-key.txt', 'tk_test_');
-const previewSecret = env.PREVIEW_SECRET || secretFile('preview-secret.txt', '');
 
 const engine = createEngine({
-  store: new FileStore(DATA), adminKey, toolKey, toolTestKey, previewSecret,
-  previewUrl: env.PREVIEW_URL || '', staticDir: env.STATIC_DIR ? path.resolve(ROOT, env.STATIC_DIR) : '',
+  store: new FileStore(DATA), adminKey, toolKey, toolTestKey,
   corsOrigins: env.CORS_ORIGINS || '*',
   aiMode: env.AI_MODE === 'mock' ? 'mock' : 'claude',
+  concurrency: Number(env.CONCURRENCY) || 2,
+  keepDays: Number(env.KEEP_DAYS) || 7,
 });
 
 const PORT = Number(env.PORT) || 4317, HOST = env.HOST || '127.0.0.1';
 http.createServer(engine.handler).on('error', e => {
   if (e.code !== 'EADDRINUSE') throw e;
-  console.error(`Poort ${PORT} is al in gebruik. Draait de engine al? Open dan gewoon http://localhost:${PORT}/studio
+  console.error(`Poort ${PORT} is al in gebruik. Draait de engine al? Open dan gewoon http://localhost:${PORT}/admin
 Of start een tweede op een andere poort: PORT=${PORT + 1} npm run test-mode`);
   process.exit(1);
 }).listen(PORT, HOST, () => {
   console.log(`AmplifAI content engine
-  API:    http://localhost:${PORT}/v1   (spec: /openapi.yaml)
-  Studio: http://localhost:${PORT}/studio
+  API:      http://localhost:${PORT}/v1   (spec: /openapi.yaml)
+  Beheer:   http://localhost:${PORT}/admin
   ${env.ADMIN_API_KEY ? 'Admin-sleutel: uit ADMIN_API_KEY' : `Admin-sleutel: ${adminKey}  (staat in ${path.relative(ROOT, DATA)}/admin-key.txt)`}
-  Test of live, de Anthropic-sleutel en de kosten regel je in de studio onder "AI en kosten".`);
+  Test of live, de Anthropic-sleutel, de grenzen en de kosten regel je op de beheerpagina.`);
 });

@@ -1,13 +1,29 @@
 # Building the AmplifAI tool on the content engine
 
-This is for whoever builds the AmplifAI tool. It covers what the engine does, how to run it on your own computer for free, and the calls the tool makes. The full reference is [README.md](README.md) and [openapi.yaml](openapi.yaml).
+This is for whoever builds the AmplifAI tool. It covers what the engine does, how to run it on your own computer for free, and the calls the tool makes. The exact request and response shapes are in [openapi.yaml](openapi.yaml); [README.md](README.md) covers running and hosting.
 
 ## Who does what
 
-- **The AmplifAI tool** is everything a shop sees: signing up, the dashboard, the toggles (tone, je/u, quality level, languages, length), approving guides, billing, and showing the guide to customers on the thank-you page and in the emails.
-- **The content engine** is the kitchen. The tool orders a guide; the engine reads the product, researches it with sources, writes it in every language, checks it against the AmplifAI rules, stores it and keeps it current. It never talks to shops or customers.
+- **The AmplifAI tool** is everything a shop sees:
+  - signing up, the dashboard and the toggles (tone, je/u, quality level, languages)
+  - storing the content and showing it to the shop owner
+  - letting the owner ask for changes or edit texts
+  - arranging the content into the guide on the thank-you page and in the emails
+  - billing
+- **The content engine** only makes the content. The tool sends one product with the shop's settings. The engine:
+  1. reads the product page and researches the brand
+  2. writes every piece of content, in every language, with a source for every fact
+  3. checks it against the AmplifAI rules
+  4. hands it back
 
-The tool talks to the engine over HTTP with one key. Shops never see the engine.
+The engine keeps no shops, no products and no guides. It keeps a result for 7 days so the tool can pick it up; after that only the tool has it.
+
+```
+tool ── POST /v1/content (product + settings) ──▶ engine: research, write, check
+tool ◀──────────── the content (JSON) ──────────── engine
+tool: stores it, shows it to the shop, builds the guide
+shop wants a change ─▶ tool ── POST /v1/content/revise (content + piece + wish) ──▶ engine
+```
 
 ## Run it on your computer (free, about two minutes)
 
@@ -16,159 +32,189 @@ Needs Node 20 or newer.
 ```bash
 cd content-engine
 npm install
-npm run seed        # four made-up test stores with products
 npm run test-mode   # starts on http://localhost:4317
 ```
 
-Then:
-
-- **Console:** http://localhost:4317/studio. Click *Inloggen* (one click on your own computer). This is AmplifAI's own screen: a test bench, the shops, the connection, AI and costs, rules.
-- **Your key:** the console, under *Koppeling met de tool*, shows two keys. They are also in `data/tool-test-key.txt` and `data/tool-key.txt`.
-  - **Test key** (`tk_test_…`): use this while building. It always writes test texts and never costs anything, even if someone switches the engine to live. It can only reach test shops (the ones it creates and the four made-up stores).
+- **Admin page:** http://localhost:4317/admin opens by itself on your own computer. It is AmplifAI's own screen:
+  - test or live, the Anthropic key, spending limits and the emergency stop
+  - which Claude model is behind each quality level
+  - the keys for the tool
+  - a **Proberen** box that makes the same call the tool makes, and shows the result with a **Wijzig** (change) button on every piece
+- **Your key:** the admin page shows both keys under *Koppeling met de tool*. They are also in `data/tool-test-key.txt` and `data/tool-key.txt`.
+  - **Test key** (`tk_test_…`): use this while building. It always writes test texts and never costs anything, even when the engine is live.
   - **Tool key** (`tk_…`): the real one, for production. Keep it on the tool's server, never in a browser.
-- **Explainer:** http://localhost:4317/hoe-het-werkt is a plain-language page about how the engine works.
 
-In test mode, research and writing are swapped for fixed templates. Everything else is real: reading shops, jobs, settings and limits, the quality check, approving, notifications. The texts have the right shape, languages, form of address and counts, so you can build every screen against them.
+In test mode the research and writing are swapped for fixed templates. Everything else is real: reading the product page, settings, the quality check, revisions, callbacks. The test texts have the right shape, languages, form of address and counts, so you can build every screen against them.
 
 ## The calls
 
 All calls send `Authorization: Bearer <key>` and JSON. `ENGINE=http://localhost:4317`.
 
-### 0. Which toggles may a shop change?
+### 0. What can a shop choose?
 
 ```bash
-curl $ENGINE/v1/guides/options -H "Authorization: Bearer $KEY"
+curl $ENGINE/v1/options -H "Authorization: Bearer $KEY"
 ```
 
 This returns:
-- the quality levels with their price per order (Basis €0,05, Plus €0,10, Premium €0,13; AmplifAI can change these)
-- every toggle a shop may change, with the options AmplifAI allows and the default for each
+- `settings`: every toggle the tool can send, with its options, limits and default
+- `qualities`: the three quality levels (Basis, Plus, Premium), with AmplifAI's estimated cost per product
+- `pieces`: the pieces of content, and the path you use to ask for a change to one
+- `languages` and `icons`
 
-Build the tool's settings screen from this, so the engine and the tool can never disagree. AmplifAI can narrow the options in the console, for example "shops may only pick warm or neutral". The shop never sees which Claude model is behind a quality level.
+Build the tool's settings screen from this, so the engine and the tool can never disagree. Which toggles a shop may touch, and what it pays, is up to the tool. The tool never sees which Claude model is behind a level.
 
-### 1. Make a guide
+### 1. Write the content for a product
 
 ```bash
-curl -X POST $ENGINE/v1/guides -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{
-  "shop": {"id": "fietsshop-jansen", "name": "Fietsshop Jansen", "url": "https://fietsshopjansen.nl"},
-  "products": [{
+curl -X POST $ENGINE/v1/content -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{
+  "product": {
     "url": "https://fietsshopjansen.nl/products/helm-aero",
     "name": "Aero Fietshelm", "brand": "Velo", "price": "€89,95",
     "description": "Lichte fietshelm met 18 ventilatieopeningen, een draaiwiel achterop voor de pasvorm en een afneembaar achterlicht. Weegt 260 gram.",
-    "image": "https://…/helm.jpg"
-  }],
-  "settings": {"tone": "warm", "formality": "informal", "tier": "basis", "languages": ["nl", "en"]},
-  "approve": "review"
+    "specs": ["Gewicht: 260 g"], "variants": ["S/M", "L/XL"], "image": "https://…/helm.jpg"
+  },
+  "shop": {"name": "Fietsshop Jansen", "url": "https://fietsshopjansen.nl"},
+  "settings": {"tone": "warm", "formality": "informal", "quality": "basis", "languages": ["nl", "en"]},
+  "reference": "product-8812",
+  "callbackUrl": "https://tool.amplifai.nl/hooks/engine"
 }'
 ```
 
+The answer comes at once, with a job:
+
 ```json
-{"shop":"fietsshop-jansen","guides":[{"product":"https://fietsshopjansen.nl/products/helm-aero","productId":"fietsshopjansen-nl-products-helm-aero","status":"writing","job":"job_pMVzBF6tRQEs"}]}
+{"id":"job_oPJBX3Q9sZce","kind":"write","reference":"product-8812","test":true,"status":"queued","progress":[],"result":null,…}
 ```
 
-- **shop:** the first call for a new `shop.id` creates the shop. Use your own stable id for the shop.
-- **products:** up to 500 per call.
-  - A product is either a URL or an object with what the tool already knows (from Shopify, say).
-  - Send the object when you can: the engine then reads less from the shop, which is faster and more reliable.
-  - If you send changed data for a product later, its guide is rewritten automatically. Sending the same data again does nothing.
-- **settings:** the shop's toggles. They're checked against AmplifAI's limits. A setting the shop may not change gives `403`; a value outside the limits gives `422` with `field`.
-- **approve:**
-  - `"review"`: the shop approves each guide in the tool.
-  - `"auto"`: a guide goes live as soon as it passes the quality check. A guide that doesn't pass waits for the shop.
-- **regenerate:** `true` rewrites a guide that already exists. Without it, a product that already has a guide just returns its status, so calling twice is safe.
-- **Shop products:** the engine never adds products to a shop by itself. The tool decides which products get a guide.
+- **product:** `url` is required. Send everything else you know (from Shopify, say). Whatever is missing, the engine reads from the product page.
+- **settings:** the shop's toggles. Missing ones get the default. A value outside the limits gives `422` with `field`.
+- **reference:** your own id, for example the product id. It comes back on the job.
+- **Getting the result:** pick one of these.
+  - `callbackUrl`: the engine POSTs the finished job there.
+  - Poll `GET /v1/content/{id}` until the status is `done` or `failed`.
+  - Add `"wait": true` and the request only answers when the job is done (up to 90 seconds). Handy in test mode and for revisions.
 
-Writing takes about one to three minutes per product in live mode, and a second in test mode.
+Writing takes about one to three minutes per product in live mode, and about a second in test mode. The engine works on two products at a time and queues the rest.
 
-### 2. Read it
+### 2. The result
 
 ```bash
-# all guides of a shop, with status
-curl "$ENGINE/v1/guides?shop=fietsshop-jansen" -H "Authorization: Bearer $KEY"
-
-# one guide (product = URL or productId)
-curl "$ENGINE/v1/guides?shop=fietsshop-jansen&product=https://fietsshopjansen.nl/products/helm-aero" -H "Authorization: Bearer $KEY"
-
-# one language, every text a plain string (easiest for emails and the thank-you page)
-curl "$ENGINE/v1/guides?shop=fietsshop-jansen&product=…&format=flat&lang=nl" -H "Authorization: Bearer $KEY"
-
-# only what is live (what customers should see)
-curl "$ENGINE/v1/guides?shop=fietsshop-jansen&product=…&version=published&format=flat&lang=nl" -H "Authorization: Bearer $KEY"
+curl $ENGINE/v1/content/job_oPJBX3Q9sZce -H "Authorization: Bearer $KEY"
 ```
+
+| status | meaning |
+|---|---|
+| `queued` | waiting for its turn |
+| `working` | busy; `progress` says what with |
+| `done` | `result` holds the content |
+| `failed` | `error` says why, in Dutch; `code: "budget"` when a spending limit stopped it |
+| `cancelled` | AmplifAI pressed the emergency stop before it started |
+
+`result` is what the tool stores. Keep it whole: a revision needs it back.
 
 ```json
-{"product":"https://fietsshopjansen.nl/products/helm-aero","productId":"fietsshopjansen-nl-products-helm-aero",
- "status":"ready","qa":{"ok":true,"errors":0,"warnings":1,"issues":[{"item":"hook","level":"warn","code":"hook","msg":"Openingszin langer dan 8 woorden"}]},
- "version":null,"updatedAt":"…","error":null,
- "guide":{"formatVersion":1,"shop":{…},"product":{"name":"Aero Fietshelm","brand":"Velo","price":"€89,95","image":null},
-          "settings":{"tone":"warm","formality":"informal","length":"standard"},"guide":{…},"sources":[{"id":"f1","url":"…","title":"…","claim":"…"}]}}
+{
+  "formatVersion": 2,
+  "test": true,
+  "languages": ["nl", "en"],
+  "settings": {"languages": ["nl","en"], "quality": "basis", "tone": "warm", "formality": "informal", "length": "standard", "tipCount": 3, "answerCount": 4, "expectCount": 2, "emailItems": 3, "style": ""},
+  "product": {"url": "https://fietsshopjansen.nl/products/helm-aero", "name": "Aero Fietshelm", "brand": "Velo", "price": "€89,95", …},
+  "shop": {"name": "Fietsshop Jansen", "url": "https://fietsshopjansen.nl/"},
+  "content": {
+    "intro": {"title": {"nl": "Jouw nieuwe Aero Fietshelm", "en": "Your new Aero Fietshelm"},
+              "headline": {"nl": "Dit wordt een fijne eerste week.", "en": "This will be a good first week."},
+              "teaser": {"headline": {"nl": "Haal alles uit jouw Aero Fietshelm", …}, "line": {…}}},
+    "story": {"text": {"nl": "…", "en": "…"}, "src": ["f1"]},
+    …
+  },
+  "sources": [{"id": "f1", "category": "brand", "claim": "Aero Fietshelm is made by Velo.", "url": "https://…", "title": "Productpagina", "used": true}, …],
+  "quality": {"ok": true, "errors": 0, "warnings": 0, "issues": []},
+  "costEUR": 0,
+  "research": {…},
+  "createdAt": "…"
+}
 ```
 
-| status | meaning | the tool shows |
+- Every text is `{"nl": "…", "en": "…"}`. With `?lang=nl` on the GET, every text is a plain string instead (easier for a preview; store the full version).
+- Every fact cites its sources by id in `src`. `sources` lists them all; `used` says whether the content cites it.
+- `research` is what the engine needs again for a revision. Send it back unchanged.
+- `quality.issues` names the piece, the rule and a message in Dutch, so the tool can show "needs a look" next to the right text.
+
+**The pieces of content.** The tool decides where each goes in the guide. The demo (`index.html` in the demo folder) shows one way.
+
+| piece | what it is | path for a change |
 |---|---|---|
-| `writing` | the engine is working on it | a spinner |
-| `ready` | written and passes the AmplifAI rules | "ready to check", with an approve button |
-| `waiting` | written, but breaks a rule (`qa.issues` says which) | "needs a look"; approving needs `force` |
-| `live` | approved; customers see it (`version` counts up) | live |
-| `failed` | something went wrong (`error` says what, in Dutch) | the reason, with a retry |
-| `removed` | the product is gone from the shop | offline |
-| `new` | known, no guide yet | nothing yet |
+| `shortName` | short product name | `shortName` |
+| `intro` | title, one-line headline, and a teaser that invites the customer to open the guide | `intro` |
+| `story` | the brand story | `story` |
+| `special` | 2 things that make this product special | `special.0` |
+| `expect` | what is normal in the first days | `expect.0` |
+| `fact` | one striking "did you know" | `fact` |
+| `care` | cleaning, storing, lifespan | `care.0` |
+| `experience` | the experience question, with a caption for new, regular and expert | `experience` |
+| `question` | the question whose answer changes the tips. Each option has a `result` (shown after picking) and the `tip` it unlocks | `question`, `question.options.0` |
+| `tips` | tips per level: `new`, `regular`, `expert` | `tips.new.0` |
+| `whileYouWait` | for the shipping email | `whileYouWait`, `whileYouWait.items.0` |
+| `firstMinutes` | for the delivery email | `firstMinutes`, `firstMinutes.items.0` |
 
-**What's in a guide** (`guide.guide`, matching the three moments in the demo):
+Items also carry an `icon` suggestion from a fixed list. Ignore it if the tool's design does not use icons.
 
-| field | what it is |
-|---|---|
-| `title`, `card`, `hook` | the thank-you card |
-| `story` | the brand story |
-| `expect` | what is normal in the first days |
-| `fact` | one striking fact |
-| `lq` | the experience question (new, regular, pro) |
-| `q` | the question whose answers change the tips |
-| `tips` | tips per experience level |
-| `answerTips` | a tip per answer |
-| `shipped` | content for the shipping email |
-| `delivered` | content for the delivery email |
-
-Every factual item cites its sources by id in `src`; `sources` lists them. In the default format every text is `{ "nl": "…", "en": "…" }`, and `format=flat&lang=nl` gives plain strings. `index.html` in the demo folder shows how each part is used on screen.
-
-### 3. Approve
+### 3. The shop asks for a change
 
 ```bash
-curl -X POST $ENGINE/v1/guides/approve -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"shop":"fietsshop-jansen","products":["https://fietsshopjansen.nl/products/helm-aero"]}'
-# {"guides":[{"product":"https://fietsshopjansen.nl/products/helm-aero","status":"live","version":1}]}
+curl -X POST $ENGINE/v1/content/revise -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{
+  "content": <the whole result you stored>,
+  "piece": "tips.new.1",
+  "wish": "Korter, en noem dat hij waterdicht is",
+  "wait": true
+}'
 ```
 
-- **A guide that breaks a rule** comes back as `"status":"waiting","reason":"quality"`. Add `"force": true` only when the shop deliberately approves it anyway.
-- **Taking a guide offline:** `POST /v1/guides/remove {"shop","product"}`.
+- The engine rewrites only that piece. The answer is a job like before, and its `result` is the whole content with the change in it. Store that instead of the old one.
+- **wish:** the owner's words, up to 600 characters. Without a wish the piece is simply written differently.
+  - What the owner says about their own product may be used as a fact. It is cited as source `w1`, `w2`, … with the title "Wens van de shop".
+  - The AmplifAI rules always win: a wish to sell or promise a delivery date is not followed.
+- **settings** (optional): new tone, form of address or quality level for this rewrite. The languages stay the same; for other languages, write the content again.
+- `result.revised` says which piece changed and with which wish.
+- Asking for `question` keeps the answer keys, so tips that hang on an answer stay connected.
 
-### Notifications (so the tool doesn't have to keep asking)
+### 4. The shop edits a text by hand
 
-Set the tool's address in the console under *Koppeling met de tool*. The engine then POSTs:
+```bash
+curl -X POST $ENGINE/v1/content/check -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"content": <the result with the edited text>}'
+# {"ok":false,"errors":1,"warnings":0,"issues":[{"piece":"tips.new.0","level":"error","code":"sell","message":"Klinkt als verkopen; de gids verkoopt nooit"}]}
+```
+
+The check is free and instant. The tool decides what to do with it, for example warn the owner before saving.
+
+### Callbacks
+
+With `callbackUrl` the engine POSTs this when a job is finished, and retries up to three times:
 
 ```json
-{"event":"guide.ready","at":"…","shop":"fietsshop-jansen","product":"https://…/helm-aero","productId":"…","qa":{…},"version":null,"held":false}
+{"event": "content.done", "at": "…", "job": {"id": "job_…", "reference": "product-8812", "status": "done", "result": {…}}}
 ```
 
-| event | when |
-|---|---|
-| `guide.ready` | written, ready to check |
-| `guide.published` | live |
-| `guide.failed` | something went wrong (`error`) |
-| `guide.removed` | the product disappeared from the shop |
-
-Check that a notification really came from the engine. The secret is shown in the console under *Koppeling met de tool*.
+The event is `content.done`, `content.failed` or `content.cancelled`. Check that it really came from the engine; the secret is on the admin page under *Koppeling met de tool*:
 
 ```js
 import crypto from 'node:crypto';
 const ok = req.headers['x-amplifai-signature'] === 'sha256=' + crypto.createHmac('sha256', SECRET).update(rawBody).digest('hex');
 ```
 
-Each notification is retried up to three times. Then read the guide with call 2.
+### A small client
 
-### Showing the guide to customers
+`clients/js/amplifai-content.js` wraps these calls for a Node server:
 
-The simplest way: the tool's server reads `version=published&format=flat&lang=…` when the thank-you page or an email is rendered, and caches it for a minute. Customers never talk to the engine. (There is also a public read with a per-shop public key, `GET /v1/public/guide?key=pk_…&product=…`, if a widget ever needs to fetch it directly.)
+```js
+import { ContentEngine } from './clients/js/amplifai-content.js';
+const ce = new ContentEngine({ baseUrl: process.env.ENGINE_URL, key: process.env.ENGINE_KEY });
+const done = await ce.waitFor(await ce.write({ product, settings, reference: product.id }));
+save(done.result);
+const changed = await ce.waitFor(await ce.revise(done.result, 'story', 'Noem dat ze uit Utrecht komen'));
+```
 
 ## Errors
 
@@ -176,8 +222,9 @@ Errors are `{"error": "…"}` with a fitting status, sometimes with `field` or `
 
 | status | meaning |
 |---|---|
-| 401 / 403 | wrong key; a setting the shop may not change; the test key on a real shop |
-| 404 | unknown shop or product |
+| 400 | the body is not a JSON object |
+| 401 / 403 | missing or wrong key; an admin call with a tool key |
+| 404 | unknown job, or older than 7 days |
 | 409 | live mode without an Anthropic key |
 | 402 + `code: "budget"` | a spending limit is reached (see below) |
 | 422 | invalid input; `field` says which |
@@ -186,42 +233,40 @@ Errors are `{"error": "…"}` with a fitting status, sometimes with `field` or `
 
 **Free:**
 - test mode
-- the test key
-- the four made-up stores
-- reading shops and products
+- the test key, always
+- reading product pages
+- the check
 
-**Costs money:** only live mode, when Claude researches and writes. That's roughly:
-- €0,30 per guide on Basis (Sonnet)
-- €0,60 on Plus (Opus)
-- €1,40 on Premium (Fable)
+**Costs money:** only live mode, when Claude researches and writes. Roughly, per product:
+- Basis (Sonnet): €0,30
+- Plus (Opus): €0,60
+- Premium (Fable): €1,40
 
-These numbers are estimates until there are real runs. The console then shows real averages.
+A revision costs a fraction of that. The estimates become real averages once there are runs; `GET /v1/options` always gives the current one.
 
-**Hard limits**, set in the console under *AI en kosten*:
+**Hard limits**, set on the admin page:
 - per day, default €5
 - per month, default €25
-- per guide, default €2
+- per product, default €2
 
-Every call to Claude checks them first. When a limit is reached, new requests get `402` and a running guide stops with a clear reason, whoever asked for it.
+Every call to Claude checks them first. When a limit is reached, new requests get `402` and a running job stops with a clear reason.
 
-**Noodstop (emergency stop):** switches everything back to test mode at once.
+**Noodstop (emergency stop):** on the admin page. It switches everything back to test mode at once and cancels what is waiting.
 
 Also set a monthly spend limit on the Anthropic key itself, in the Anthropic Console. That brake works even if the engine has a bug.
 
-A guide is written once and only rewritten when the product changes, so a shop's price per order and AmplifAI's cost per guide are separate. The engine doesn't know about orders. **Counting opened guides and billing the shop is the tool's job.**
+**Writing once:** the engine writes content when the tool asks, never by itself. The tool decides when a product needs new content, for example when its description changes. The shop's price per order and AmplifAI's cost per product are separate: counting opened guides and billing the shop is the tool's job.
 
 ## Going live
 
-1. **Host the engine** somewhere the tool's server can reach it, behind HTTPS (not decided yet). For more than a handful of shops, replace the file store with a database; it's five calls, see README *Storage*.
-2. **Set the keys** as environment variables: `ADMIN_API_KEY`, `TOOL_API_KEY`, `TOOL_TEST_KEY`, `PREVIEW_SECRET`, `HOST`, `CORS_ORIGINS`.
-3. **Add the Anthropic key** in the console under *AI en kosten*, and set the limits.
-4. **Try live** in the console's test bench under *Echte webshop*:
-   1. Fetch a real shop (free).
-   2. Pick one product. The bar shows what it will cost before you click.
+1. **Host the engine** somewhere the tool's server can reach it, behind HTTPS (not decided yet). It only needs a disk for `data/` (results for 7 days, spending, the Anthropic key).
+2. **Set the keys** as environment variables: `ADMIN_API_KEY`, `TOOL_API_KEY`, `TOOL_TEST_KEY`, `HOST`, `CORS_ORIGINS`.
+3. **Add the Anthropic key** on the admin page, and set the limits.
+4. **Try live** on the admin page under *Proberen*: untick "Gratis testteksten" and write one product. The cost shows before you click.
 5. **Switch the tool** from the test key to the real tool key.
 
 ## Still to decide together
 
-- Where the engine runs (hosting and database).
-- Who counts opened guides and bills them. The engine doesn't see orders, so this probably belongs to the tool.
-- Whether a shop may press "rewrite everything" for a whole shop. In live mode that costs per product.
+- Where the engine runs.
+- How the tool shows changes to the shop: a wish box per piece, editing by hand, or both.
+- When the tool asks for new content: when the product changes, when the shop changes its settings, or only on request.

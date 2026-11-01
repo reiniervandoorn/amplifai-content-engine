@@ -1,16 +1,16 @@
-// Test mode (AI_MODE=mock): the same three functions as ai.js, without Claude. Everything around them
-// runs for real (crawling, jobs, settings, locks, publishing); only the words come from fixed templates.
+// Test mode: the same three functions as ai.js, without Claude. Everything around them runs for real
+// (reading the product page, jobs, settings, the quality check); only the words come from fixed templates.
 // The output follows the same schema and the same settings (languages, formality, tone, counts),
-// so every studio action and integration can be tried without an Anthropic key and at no cost.
+// so the AmplifAI tool can be built against it without an Anthropic key and at no cost.
 // Dutch and English are written out; German and French reuse the English text with a [DE]/[FR] tag.
-import { schemas, getPath, setPath } from './ai.js';
+import { schemas, getPath, kindOf } from './ai.js';
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const NOUSAGE = { input: 0, output: 0, searches: 0 };
 
 /* ── word lists. {je}/{jouw}/{Je}/{Jouw} become je/jouw or u/uw in Dutch ── */
-const HOOK = {
-  warm:    [['Dit wordt een fijne eerste week.', 'This will be a good first week.'], ['Goed gekozen, en zo haal {je} er alles uit.', 'Good choice, and here is how to get the most out of it.']],
+const HEADLINE = {
+  warm:    [['Dit wordt een fijne eerste week.', 'This will be a good first week.'], ['Goed gekozen. Zo haal {je} er alles uit.', 'Good choice. Here is how to get the most out of it.']],
   neutral: [['Alles wat {je} moet weten, kort.', 'Everything you need to know, briefly.'], ['De eerste week, in drie punten.', 'The first week, in three points.']],
   expert:  [['Zo werkt hij, en zo blijft hij goed.', 'How it works, and how to keep it that way.'], ['De details die het verschil maken.', 'The details that make the difference.']],
   playful: [['Spoiler: {je} gaat hem vaak gebruiken.', 'Spoiler: you will use it a lot.'], ['Uitpakken mag. Eerst even dit.', 'Unboxing is allowed. First, this.']],
@@ -24,16 +24,27 @@ const EXPECT = [
 const TIPS = [
   ['pen', 'Noteer de aankoopdatum', 'Note the purchase date', 'Handig voor garantie en om te weten wanneer onderhoud nodig is.', 'Useful for warranty and to know when maintenance is due.'],
   ['box', 'Bewaar de doos even', 'Keep the box for now', 'Mocht {je} willen ruilen, dan is de originele doos handig.', 'If you want to exchange it, the original box is handy.'],
-  ['drop', 'Schoonmaken met een zachte doek', 'Clean with a soft cloth', 'Een vochtige, zachte doek is meestal genoeg. Agressieve middelen zijn zelden nodig.', 'A damp, soft cloth is usually enough. Harsh cleaners are rarely needed.'],
-  ['thermo', 'Droog en uit de zon bewaren', 'Store dry and out of the sun', 'Vocht en direct zonlicht verouderen de meeste materialen het snelst.', 'Moisture and direct sunlight age most materials fastest.'],
   ['clock', 'Begin rustig', 'Start gently', 'De eerste keren kort gebruiken geeft {je} tijd om te wennen.', 'Short first uses give you time to get used to it.'],
   ['link', 'Kijk wat er in de doos zit', 'Check what is in the box', 'Soms zit er een klein onderdeel bij dat het gebruik makkelijker maakt.', 'Sometimes a small part is included that makes use easier.'],
-  ['shield', 'Lees het onderhoudslabel', 'Read the care label', 'Daar staat precies hoe {je} het lang mooi houdt.', 'It says exactly how to keep it in good shape.'],
   ['swap', 'Afwisselen helpt', 'Alternating helps', 'Wat {je} vaak gebruikt, gaat langer mee als het af en toe kan rusten.', 'Things you use often last longer when they can rest now and then.'],
   ['route', 'Probeer het eerst thuis', 'Try it at home first', 'Zo ontdek {je} rustig hoe alles werkt, zonder haast.', 'That way you calmly find out how everything works, without hurry.'],
-  ['cal', 'Plan een vast onderhoudsmoment', 'Plan a regular maintenance moment', 'Eén keer per maand even nalopen voorkomt de meeste problemen.', 'Checking it once a month prevents most problems.'],
   ['gauge', 'Let op hoe het slijt', 'Watch how it wears', 'Kleine veranderingen zie {je} het eerst op plekken die het meest gebruikt worden.', 'You notice small changes first where it is used most.'],
   ['volume', 'Vraag het de shop', 'Ask the shop', 'Klopt er iets niet of twijfel {je}? De shop helpt graag.', 'Something not right, or unsure? The shop is happy to help.'],
+  ['phone', 'Zoek de handleiding online op', 'Look up the manual online', 'Een digitale versie is handig als het papiertje zoekraakt.', 'A digital copy is handy when the paper one goes missing.'],
+  ['bell', 'Let op hoe het voelt', 'Notice how it feels', 'Voelt iets anders dan verwacht? Dat zegt vaak iets over de afstelling.', 'Something feels different than expected? That often says something about the set-up.'],
+  ['walk', 'Bouw het rustig op', 'Build up gradually', 'Langer of vaker gebruiken gaat het fijnst stap voor stap.', 'Using it longer or more often works best step by step.'],
+  ['home', 'Geef het een vaste plek', 'Give it a fixed spot', 'Wat een vaste plek heeft, is sneller gepakt en raakt minder snel beschadigd.', 'What has a fixed spot is quicker to grab and less likely to get damaged.'],
+];
+const SPECIAL = [
+  ['gauge', 'Gemaakt voor dagelijks gebruik', 'Made for everyday use', 'Testmodus: hier komt wat dit product bijzonder maakt, uit de bronnen.', 'Test mode: what makes this product special, from the sources, goes here.'],
+  ['tool', 'Doordacht ontwerp', 'A thoughtful design', 'Testmodus: hier komt een tweede bijzonder punt, met bron.', 'Test mode: a second special point, with a source, goes here.'],
+  ['shield', 'Gaat lang mee', 'Built to last', 'Testmodus: nog een bijzonder punt uit de bronnen.', 'Test mode: another special point from the sources.'],
+];
+const CARE = [
+  ['drop', 'Schoonmaken met een zachte doek', 'Clean with a soft cloth', 'Een vochtige, zachte doek is meestal genoeg. Agressieve middelen zijn zelden nodig.', 'A damp, soft cloth is usually enough. Harsh cleaners are rarely needed.'],
+  ['thermo', 'Droog en uit de zon bewaren', 'Store dry and out of the sun', 'Vocht en direct zonlicht verouderen de meeste materialen het snelst.', 'Moisture and direct sunlight age most materials fastest.'],
+  ['shield', 'Lees het onderhoudslabel', 'Read the care label', 'Daar staat precies hoe {je} het lang mooi houdt.', 'It says exactly how to keep it in good shape.'],
+  ['cal', 'Plan een vast onderhoudsmoment', 'Plan a regular maintenance moment', 'Eén keer per maand even nalopen voorkomt de meeste problemen.', 'Checking it once a month prevents most problems.'],
 ];
 const SHIPPED = [
   ['home', 'Kies een plek.', 'Pick a spot.', 'Bedenk waar {je} het gaat gebruiken of bewaren.', 'Think about where you will use or store it.'],
@@ -61,9 +72,9 @@ function texter(s) {
     .replace(/\{Je\}/g, formal ? 'U' : 'Je').replace(/\{Jouw\}/g, formal ? 'Uw' : 'Jouw');
   return (nl, en) => Object.fromEntries(s.languages.map(l => [l, l === 'nl' ? nlForm(nl) : l === 'en' ? en : `[${l.toUpperCase()}] ${en}`]));
 }
-const pick = (list, n, seed, skip = new Set()) => {
-  const ok = list.filter(x => !skip.has(x[2]) && !skip.has(x[1])), out = [];
-  for (let i = 0; i < n && ok.length; i++) out.push(ok[(seed + i) % ok.length]);
+const pick = (list, n, seed) => {
+  const out = [];
+  for (let i = 0; i < n && list.length; i++) out.push(list[(seed + i) % list.length]);
   return out;
 };
 
@@ -90,7 +101,7 @@ export async function research(page, settings, { onProgress } = {}) {
   ];
   return {
     product: { brand: page.brand, name: page.name, short_name: shortName(page), price: page.price, what_it_is: page.category || 'product', key_specs: (page.properties || []).slice(0, 4) },
-    facts: claims.map(([category, claim], i) => ({ id: 'f' + (i + 1), category, claim, url: page.url, title: 'Productpagina', snippet: '', on: true })),
+    facts: claims.map(([category, claim], i) => ({ id: 'f' + (i + 1), category, claim, url: page.url, title: 'Productpagina', snippet: '' })),
     dropped: 0,
     questionIdeas: [{ question: 'How often will you use it?', options: ['Every day', 'At weekends', 'Not sure yet'], why: 'Changes the care advice.' }],
     usage: NOUSAGE,
@@ -99,63 +110,74 @@ export async function research(page, settings, { onProgress } = {}) {
 }
 
 /* ── writing ── */
-function build({ page, research: r, settings: s, removed = [], seed = 0 }) {
-  const T = texter(s), skip = new Set(removed);
-  const facts = r.facts.filter(f => f.on !== false), fid = cat => facts.find(f => f.category === cat)?.id;
+function build({ page, research: r, settings: s, seed = 0 }) {
+  const T = texter(s);
+  const fid = cat => r.facts.find(f => f.category === cat)?.id;
   const src = cat => (fid(cat) ? [fid(cat)] : []);
   const name = page.name || 'product', brand = page.brand || '', short = (r.product?.short_name || name).trim() || name;
-  const hooks = HOOK[s.tone] || HOOK.warm, h = hooks[seed % hooks.length];
-  const item = ([icon, ln, le, tn, te], cat) => ({ icon, lead: T(ln, le), text: T(tn, te), src: cat ? src(cat) : [] });
+  const heads = HEADLINE[s.tone] || HEADLINE.warm, h = heads[seed % heads.length];
+  const point = ([icon, ln, le, tn, te], cat) => ({ icon, lead: T(ln, le), text: T(tn, te), src: cat ? src(cat) : [] });
   const tip = ([icon, tn, te, dn, de], cat) => ({ icon, title: T(tn, te), text: T(dn, de), src: cat ? src(cat) : [] });
-  const tips = pick(TIPS, s.tipCount * 3, seed, skip);
+  const tips = pick(TIPS, s.tipCount * 3, seed);
   const opts = pick(OPTIONS.slice(0, 3), s.answerCount - 1, seed).concat([OPTIONS[3]]);
   // quote the shop's description only when it does not address the reader (that would clash with je/u)
-  const descFact = facts.find(f => f.claim.startsWith('From the product description') && !/\b(je|jij|jouw|jou|u|uw)\b/i.test(f.claim));
+  const descFact = r.facts.find(f => f.claim.startsWith('From the product description') && !/\b(je|jij|jouw|jou|u|uw)\b/i.test(f.claim));
   return {
-    short: T(short, short),
-    title: T(`{Jouw} nieuwe ${short}`, `Your new ${short}`),
-    card: { h: T(`Haal alles uit {jouw} ${short}`, `Get the most out of your ${short}`), s: T('Een paar dingen om te weten', 'A few things to know') },
-    hook: T(...h),
+    shortName: T(short, short),
+    intro: {
+      title: T(`{Jouw} nieuwe ${short}`, `Your new ${short}`),
+      headline: T(...h),
+      teaser: { headline: T(`Haal alles uit {jouw} ${short}`, `Get the most out of your ${short}`), line: T('Een paar dingen om te weten', 'A few things to know') },
+    },
     story: { text: T(`${name}${brand && !name.startsWith(brand) ? ` van ${brand}` : ''}. Testmodus: hier komt het merkverhaal uit de bronnen.`, `${name}${brand && !name.startsWith(brand) ? ` by ${brand}` : ''}. Test mode: the brand story from the sources goes here.`), src: src('brand') },
-    expect: pick(EXPECT, s.expectCount, seed, skip).map(x => item(x)),
+    special: pick(SPECIAL, 2, seed).map(x => tip(x, 'special')),
+    expect: pick(EXPECT, s.expectCount, seed).map(x => point(x)),
     fact: { icon: 'tag', text: descFact ? T(`Uit de productbeschrijving: ${descFact.claim.replace(/^From the product description: /, '')}`, descFact.claim) : T(`${name} komt uit de collectie van ${brand || 'deze shop'}.`, `${name} is part of the ${brand || 'shop'} range.`), src: descFact ? [descFact.id] : src('brand') },
-    lq: { q: T(`Hoeveel ervaring heb {je} hiermee?`, 'How much experience do you have with this?'), new: T('Nieuw voor mij', 'New to me'), reg: T('Ik ken het', 'I know it'), pro: T('Ik weet er veel van', 'I know a lot about it') },
-    q: { eye: T('Voor {jouw} tips', 'For your tips'), title: T(`Hoe vaak ga {je} hem gebruiken?`, 'How often will you use it?'), sub: T('Dan passen de tips erbij.', 'So the tips fit.'),
-      options: opts.map(([v, ln, le, nn, ne, ok, an, ae]) => ({ v, label: T(ln, le), note: T('', ''), ok, h: T(nn, ne), lines: [T(an, ae), T('Dit is testinhoud.', 'This is test content.')], src: [] })) },
-    tips: { new: tips.slice(0, s.tipCount).map(x => tip(x)), reg: tips.slice(s.tipCount, s.tipCount * 2).map(x => tip(x, 'care')), pro: tips.slice(s.tipCount * 2).map(x => tip(x)) },
-    answerTips: opts.map(([v, ln, le, nn, ne], i) => {
-      const t = TIPS[(seed + i + 5) % TIPS.length];
-      return { v, icon: t[0], title: T(t[1], t[2]), text: T(t[3], t[4]), why: T(`Omdat {je} koos: ${ln.toLowerCase()}`, `Because you chose: ${le.toLowerCase()}`), src: [] };
-    }),
-    shipped: { title: T('Terwijl {je} wacht', 'While you wait'), items: pick(SHIPPED, s.momentItems, seed, skip).map(x => item(x)) },
-    delivered: { title: T('De eerste 10 minuten', 'The first 10 minutes'), items: pick(DELIVERED, s.momentItems, seed, skip).map(x => item(x)) },
+    care: pick(CARE, 3, seed).map(x => tip(x, 'care')),
+    experience: { question: T('Hoeveel ervaring heb {je} hiermee?', 'How much experience do you have with this?'), new: T('Nieuw voor mij', 'New to me'), regular: T('Ik ken het', 'I know it'), expert: T('Ik weet er veel van', 'I know a lot about it') },
+    question: {
+      eyebrow: T('Voor {jouw} tips', 'For your tips'), title: T('Hoe vaak ga {je} hem gebruiken?', 'How often will you use it?'), sub: T('Dan passen de tips erbij.', 'So the tips fit.'),
+      options: opts.map(([key, ln, le, nn, ne, ok, an, ae], i) => {
+        const t = TIPS[(seed + i + 5) % TIPS.length];
+        return { key, label: T(ln, le), note: T('', ''), ok, result: { headline: T(nn, ne), lines: [T(an, ae), T('Dit is testinhoud.', 'This is test content.')] },
+          tip: { icon: t[0], title: T(t[1], t[2]), text: T(t[3], t[4]), why: T(`Omdat {je} koos: ${ln.toLowerCase()}`, `Because you chose: ${le.toLowerCase()}`) }, src: [] };
+      }),
+    },
+    tips: { new: tips.slice(0, s.tipCount).map(x => tip(x)), regular: tips.slice(s.tipCount, s.tipCount * 2).map(x => tip(x)), expert: tips.slice(s.tipCount * 2).map(x => tip(x)) },
+    whileYouWait: { title: T('Terwijl {je} wacht', 'While you wait'), items: pick(SHIPPED, s.emailItems, seed).map(x => point(x)) },
+    firstMinutes: { title: T('De eerste 10 minuten', 'The first 10 minutes'), items: pick(DELIVERED, s.emailItems, seed).map(x => point(x)) },
   };
 }
 
-export async function writeGuide({ page, research: r, settings, current, locked = [], removed = [] }) {
-  await wait(350);
+export async function write({ page, research: r, settings }) {
+  await wait(300);
   const seed = Math.floor(Date.now() / 1000) % 7;
-  const out = schemas(settings.languages).Guide.parse(build({ page, research: r, settings, removed, seed })); // same shape as the real writer
-  for (const p of locked) { const v = getPath(current, p); if (v != null) setPath(out, p, v) }
-  return { guide: out, usage: NOUSAGE };
+  const content = schemas(settings.languages).Content.parse(build({ page, research: r, settings, seed })); // same shape as the real writer
+  return { content, usage: NOUSAGE };
 }
 
-export async function rewriteItem({ page, research: r, settings, current, path, wish }) {
-  await wait(300);
+// The wish shows up in the rewritten text, so the tool can see the round trip work.
+export async function revise({ page, research: r, settings, current, path, wish }) {
+  await wait(250);
   const before = JSON.stringify(getPath(current, path));
-  // try the next variants until this item comes out different
+  const shop = r.facts.find(f => f.id.startsWith('w'));
   for (let seed = 1; seed < 12; seed++) {
-    const g = build({ page, research: r, settings, seed: seed + (Date.now() % 5) });
-    let item = getPath(g, path);
-    if (item == null) break;
-    if (path.startsWith('answerTips.')) item = { ...item, v: getPath(current, path).v };
-    if (path === 'q') item = { ...item, options: item.options.map((o, i) => ({ ...o, v: current.q.options[i]?.v ?? o.v })) };
-    if (wish && item && typeof item === 'object') {
-      const note = (t) => Object.fromEntries(Object.entries(t).map(([l, v]) => [l, `${v} (wens: ${wish.slice(0, 60)})`]));
-      if (item.text && typeof item.text === 'object') item.text = note(item.text);
-      else if (Object.values(item).every(v => typeof v === 'string')) item = note(item);
+    const c = build({ page, research: r, settings, seed: seed + (Date.now() % 5) });
+    let piece = structuredClone(getPath(c, path) ?? getPath(current, path));
+    if (piece == null) break;
+    if (kindOf(path) === 'option') piece.key = getPath(current, path).key;
+    if (kindOf(path) === 'question') piece.options = piece.options.map((o, i) => ({ ...o, key: current.question.options[i]?.key ?? o.key }));
+    if (wish && piece && typeof piece === 'object') {
+      const note = t => Object.fromEntries(Object.entries(t).map(([l, v]) => [l, `${v} (wens: ${wish.slice(0, 60)})`]));
+      const field = ['text', 'title', 'headline', 'question'].find(k => piece[k] && typeof piece[k] === 'object' && !Array.isArray(piece[k]) && settings.languages.every(l => typeof piece[k][l] === 'string'));
+      if (field) piece[field] = note(piece[field]);
+      else if (settings.languages.every(l => typeof piece[l] === 'string')) piece = note(piece);
+      if (shop && Array.isArray(piece.src)) piece.src = [...new Set([...piece.src, shop.id])];
     }
-    if (JSON.stringify(item) !== before) return { item, usage: NOUSAGE };
+    // a tip may not repeat another tip
+    const [l] = settings.languages, others = [...(current.care || []), ...Object.values(current.tips || {}).flat()].filter(t => t !== getPath(current, path));
+    if (piece?.title?.[l] && others.some(t => t.title?.[l] === piece.title[l].replace(/ \(wens: .*\)$/, ''))) continue;
+    if (JSON.stringify(piece) !== before) return { piece, usage: NOUSAGE };
   }
-  return { item: getPath(current, path), usage: NOUSAGE };
+  return { piece: getPath(current, path), usage: NOUSAGE };
 }
