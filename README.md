@@ -41,8 +41,8 @@ Research and writing are replaced by fixed templates (`src/mock-ai.js`). Everyth
 ## How it works
 
 1. **Product:** what the tool sent. When the name or a description of at least 200 characters is missing, the engine reads the product page (structured data first, then the page text; `src/crawl.js`), honouring robots.txt.
-2. **Research** (`src/ai.js`): Claude searches the brand's and manufacturer's own sites and collects facts, each with the URL it came from. Facts whose URL Claude did not actually see are dropped. Independent tests, reviews, forums and other shops are not allowed as sources (`RESEARCH.blockedDomains` in `src/settings.js`).
-3. **Writing:** one structured call writes every piece in every language, citing facts by id. The fixed AmplifAI rules (`RULES` in `src/settings.js`) go into every prompt; the shop's style wish cannot override them.
+2. **Research** (`src/ai.js`): Claude searches the brand's and manufacturer's own sites and collects facts, each with the URL it came from. Facts whose URL Claude did not actually see are dropped. Independent tests, reviews, forums and other shops are not allowed as sources (`RESEARCH.blockedDomains` in `src/settings.js`). In live mode the research is kept for `KEEP_DAYS` per product and quality level and reused, so a new tone or a retry only pays for writing; changed product data means new research.
+3. **Writing:** one call writes every piece in every language as JSON, citing facts by id. The engine checks the JSON against the schema itself and sends a wrong answer back once with what was wrong. (Anthropic's strict structured outputs refuse a schema this size.) The fixed AmplifAI rules (`RULES` in `src/settings.js`) go into every prompt; the shop's style wish cannot override them.
 4. **Quality check** (`src/quality.js`): selling language, delivery promises, discouraging returns, numbers without a source, the wrong form of address, missing languages, length, repeated tips, answers without a tip. In live mode pieces that break a rule are rewritten once.
 5. **Revision:** the tool sends the whole result back with a piece and a wish. The wish is added as a fact (`w1`, …) so what the shop says about its own product can be cited; the rest of the content and all earlier facts stay.
 
@@ -50,7 +50,7 @@ The quality level (`basis`, `plus`, `premium`) picks the Claude model: by defaul
 
 ## Costs and spending limits
 
-Only live mode costs money. A product costs roughly €0,30 on Basis, €0,60 on Plus and €1,40 on Premium; a revision a fraction of that. The estimates become real averages after three runs per model.
+Only live mode costs money. A product costs roughly €0,30 on Basis, €0,60 on Plus and €1,40 on Premium; writing again with the same product data (another tone, say) reuses the research and costs about a third; a revision a fraction of that. The estimates become real averages after three runs per model.
 
 - **Hard limits** per day, per month and per product (defaults €5, €25, €2), set on the admin page. Every call to Claude checks them first and records its cost afterwards, so a limit stops the engine before the next call. New requests get `402` with `code: "budget"`; a running job fails with the reason.
 - **Emergency stop** (`POST /v1/admin/stop`, *Noodstop* on the admin page): back to test mode, waiting jobs cancelled, running ones stop at their next call to Claude.
@@ -80,6 +80,7 @@ The engine uses four calls: `get(collection, id)`, `put(collection, id, value)`,
 - `jobs`: jobs and their results, deleted after `KEEP_DAYS`
 - `spend`: Anthropic costs per day
 - `runs`: the cost of each live product, for the estimates
+- `research`: live research per product and quality level, reused for `KEEP_DAYS`
 - `platform`: test or live, limits, model per level
 - `secrets`: the Anthropic key entered on the admin page, and the callback secret
 

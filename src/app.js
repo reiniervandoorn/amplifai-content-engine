@@ -66,9 +66,10 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
     // a restart forgets running jobs: say so, rather than leave them "working" forever
     const cutoff = Date.now() - keepDays * 864e5;
     for (const j of await store.list('jobs')) {
-      if (Date.parse(j.createdAt) < cutoff) await store.del('jobs', j.id);
+      if (!(Date.parse(j.createdAt) >= cutoff)) await store.del('jobs', j.id);
       else if (j.status === 'queued' || j.status === 'working') await store.put('jobs', j.id, { ...j, status: 'failed', error: 'De engine is herstart terwijl deze taak liep. Vraag het opnieuw aan.', finishedAt: now() });
     }
+    for (const r of await store.list('research')) if (!(Date.parse(r.at) >= cutoff)) await store.del('research', r.key);
   })();
   async function readJob(id) {
     await ready;
@@ -180,6 +181,19 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
       return page;
     }
   }
+  // Research is the costly half and does not depend on tone, form of address or languages, so in live mode
+  // it is kept for keepDays and reused: a new tone, or a second try after a failure, only pays for writing.
+  async function researchFor(AI, page, settings, say) {
+    const key = crypto.createHash('sha256').update(JSON.stringify([settings.model, page.url, page.name, page.brand, page.description, page.properties])).digest('hex').slice(0, 32);
+    const live = AI !== mockAi;
+    const kept = live && await store.get('research', key);
+    if (kept && Date.now() - Date.parse(kept.at) < keepDays * 864e5) { say('Bronnen van eerder onderzoek gebruikt (gratis)'); return kept.research }
+    say('Bronnen zoeken bij merk en fabrikant…');
+    const found = await AI.research(page, settings, { onProgress: say });
+    const research = { product: found.product, facts: found.facts.map(({ on, ...f }) => f), questionIdeas: found.questionIdeas };
+    if (live) await store.put('research', key, { key, at: now(), research });
+    return research;
+  }
   const shopFrom = s => ({ name: str(s?.name, 120), url: s?.url ? checkUrl(/^https?:/i.test(s.url) ? s.url : 'https://' + s.url, 'shop.url') : null });
 
   // which sources the content cites
@@ -263,9 +277,7 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
     return run(who, 'write', body, async say => {
       const AI = await ai(who), test = AI === mockAi;
       const page = await fillFromPage(given, say);
-      say('Bronnen zoeken bij merk en fabrikant…');
-      const found = await AI.research(page, settings, { onProgress: say });
-      const research = { ...found, facts: found.facts.map(({ on, ...f }) => f) };
+      const research = await researchFor(AI, page, settings, say);
       say(`Teksten schrijven (${settings.languages.join(', ')})…`);
       const { content } = await AI.write({ page, research, shop, settings, rules: RULES });
       const quality = await repair(AI, content, { page, research, shop }, settings, say);
@@ -401,6 +413,8 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
   function explain(e) {
     if (e instanceof HttpError || e instanceof SettingsError || e.status) return [e.status || 400, { error: e.message, ...(e.key && { field: e.key }), ...(e.code && { code: e.code }) }];
     if (e instanceof Anthropic.AuthenticationError) return [502, { error: 'Anthropic accepteert de API-sleutel niet. Controleer hem op de beheerpagina.' }];
+    if (e instanceof Anthropic.RateLimitError) return [503, { error: 'Anthropic is even te druk (rate limit). Probeer het over een minuut opnieuw.' }];
+    if (e instanceof Anthropic.APIError) return [502, { error: `Anthropic weigerde het verzoek (${e.status ?? 'geen verbinding'}): ${e.error?.error?.message || e.message}` }];
     if (/API key|apiKey|authToken/i.test(e?.message || '')) return [503, { error: 'Geen Anthropic-sleutel ingesteld op de server' }];
     console.error(e);
     return [500, { error: e?.message || 'Interne fout' }];

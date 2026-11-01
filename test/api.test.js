@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import { createEngine } from '../src/app.js';
 import { FileStore } from '../src/store.js';
 import { ContentEngine } from '../clients/js/amplifai-content.js';
+import * as mockAi from '../src/mock-ai.js';
 
 let dir, server, base, admin, tool, testTool;
 
@@ -248,6 +249,62 @@ test('spending limits stop live mode before it goes over, the emergency stop wor
     // the admin page's recent list shows what happened
     const recent = (await adm.request('GET', '/v1/admin/status')).recent;
     assert.equal(recent.filter(r => r.status === 'failed').length, 2);
+  } finally {
+    fake.close(); await e.close();
+    if (oldBase === undefined) delete process.env.ANTHROPIC_BASE_URL; else process.env.ANTHROPIC_BASE_URL = oldBase;
+  }
+});
+
+test('live writing: Claude answers in JSON, a wrong answer is sent back once, research is reused for a new tone', async () => {
+  // a stand-in for Anthropic: research answers with facts; writing first leaves out a piece, then gets it right
+  const calls = { research: 0, write: 0 };
+  const page = { url: 'https://fietsshop.test/products/helm-aero', name: 'Velo Aero Fietshelm', brand: 'Velo', description: helm().description };
+  const research = { product: { brand: 'Velo', name: 'Aero', short_name: 'Aero' }, facts: [{ category: 'brand', claim: 'Velo was founded in 1990.', url: page.url, snippet: 'since 1990' }], question_ideas: [] };
+  const fake = http.createServer((req, res) => {
+    let b = ''; req.on('data', c => b += c); req.on('end', async () => {
+      const body = JSON.parse(b), isResearch = /You research one product/.test(body.system);
+      let text;
+      if (isResearch) { calls.research++; text = '```json\n' + JSON.stringify(research) + '\n```' }
+      else {
+        calls.write++;
+        const settings = { languages: ['nl', 'en'], tone: 'warm', formality: 'informal', tipCount: 3, answerCount: 4, expectCount: 2, emailItems: 3 };
+        const { content } = await mockAi.write({ page, research: { product: research.product, facts: [{ id: 'f1', category: 'brand', claim: 'x', url: page.url }] }, settings });
+        content.special[0].icon = 'raket';
+        if (calls.write === 1) delete content.care;
+        text = 'Here it is.\n```json\n' + JSON.stringify(content) + '\n```';
+      }
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      const ev = (type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
+      ev('message_start', { message: { id: 'msg', type: 'message', role: 'assistant', model: body.model, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 1000, output_tokens: 0 } } });
+      ev('content_block_start', { index: 0, content_block: { type: 'text', text: '' } });
+      ev('content_block_delta', { index: 0, delta: { type: 'text_delta', text } });
+      ev('content_block_stop', { index: 0 });
+      ev('message_delta', { delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 2000 } });
+      ev('message_stop', {});
+      res.end();
+    });
+  });
+  await new Promise(r => fake.listen(0, '127.0.0.1', r));
+  const oldBase = process.env.ANTHROPIC_BASE_URL;
+  process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${fake.address().port}`;
+  const e = await boot({ seed: [['secrets', 'anthropic', { key: 'sk-ant-fake' }], ['platform', 'main', { mode: 'live' }]] });
+  const live = e.client('tk_t');
+  try {
+    let j = await live.waitFor(await live.write({ product: helm(), wait: true }), { interval: 50 });
+    assert.equal(j.result.test, false);
+    assert.deepEqual(calls, { research: 1, write: 2 });
+    assert.equal(j.result.content.care.length, 3);
+    assert.equal(j.result.content.special[0].icon, 'tag');
+    assert.ok(j.result.costEUR > 0);
+    assert.equal(j.result.sources[0].claim, 'Velo was founded in 1990.');
+    // the shop picks another tone: the research is reused, only the writing is paid again
+    j = await live.waitFor(await live.write({ product: helm(), settings: { tone: 'expert' }, wait: true }), { interval: 50 });
+    assert.equal(j.status, 'done');
+    assert.equal(calls.research, 1);
+    assert.ok(j.progress.some(p => /eerder onderzoek/.test(p.msg)));
+    // changed product data means new research
+    await live.waitFor(await live.write({ product: helm({ description: helm().description + ' Nu ook in XL.' }), wait: true }), { interval: 50 });
+    assert.equal(calls.research, 2);
   } finally {
     fake.close(); await e.close();
     if (oldBase === undefined) delete process.env.ANTHROPIC_BASE_URL; else process.env.ANTHROPIC_BASE_URL = oldBase;

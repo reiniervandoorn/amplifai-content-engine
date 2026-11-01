@@ -2,7 +2,6 @@
 // product's guide (see README, "The content"), in every language the settings ask for.
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { LANGUAGES } from './settings.js';
 
 // What each model supports. On a policy decline the API can re-run the request on Anthropic's
@@ -21,8 +20,8 @@ let client, clientKey, apiKey = null;
 export function setApiKey(k) { apiKey = k || null }
 export const hasKey = () => !!(apiKey || process.env.ANTHROPIC_API_KEY);
 const claude = () => {
-  const k = apiKey || process.env.ANTHROPIC_API_KEY || '';
-  if (!client || clientKey !== k) { client = new Anthropic(k ? { apiKey: k } : {}); clientKey = k }
+  const k = apiKey || process.env.ANTHROPIC_API_KEY || '', id = k + '|' + (process.env.ANTHROPIC_BASE_URL || '');
+  if (!client || clientKey !== id) { client = new Anthropic(k ? { apiKey: k } : {}); clientKey = id }
   return client;
 };
 // Checks a key without spending anything: listing models is free.
@@ -102,7 +101,7 @@ export async function research(page, settings, { onProgress, meter } = {}) {
       system: RESEARCH_SYSTEM, messages, ...(tools.length && { tools }),
     });
     stream.on('contentBlock', b => {
-      if (b.type === 'server_tool_use') onProgress?.(b.name === 'web_search' ? `Zoekt: ${b.input?.query || ''}` : `Leest: ${b.input?.url || ''}`);
+      if (b.type === 'server_tool_use') onProgress?.(b.name === 'web_search' ? `Zoekt: ${b.input?.query || '…'}` : b.input?.url ? `Leest: ${b.input.url}` : 'Leest een pagina…');
     });
     msg = await stream.finalMessage();
     usage = addUsage(usage, msg.usage, settings.model);
@@ -137,7 +136,8 @@ export async function research(page, settings, { onProgress, meter } = {}) {
 export function schemas(langs) {
   const Txt = z.object(Object.fromEntries(langs.map(l => [l, z.string()])));
   const Src = z.array(z.string()).describe('ids of the facts this item rests on, e.g. ["f3"]');
-  const Icon = z.enum(ICONS).describe('a suggested icon; the tool may ignore it');
+  // a plain string, not an enum: the writer picks from the list, and fixIcons() catches a slip
+  const Icon = z.string().describe('a suggested icon, one of: ' + ICONS.join(', '));
   const Point = z.object({ icon: Icon, lead: Txt.describe('one short bold sentence'), text: Txt, src: Src });
   const Tip = z.object({ icon: Icon, title: Txt, text: Txt, src: Src });
   const Option = z.object({
@@ -237,18 +237,46 @@ Question ideas from research (optional):
 ${ideas || '-'}`;
 }
 
+// The writer answers in JSON that matches the schema, and the engine checks it here. (Anthropic's strict
+// structured outputs refuse a schema this size: "compiled grammar is too large".) An answer that does not
+// fit is sent back once with what was wrong.
+const jsonOf = text => {
+  const m = text.match(/```json\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})\s*$/);
+  if (!m) throw new Error('geen JSON in het antwoord');
+  return JSON.parse(m[1]);
+};
 async function parse(schema, s, system, user, effort, meter) {
-  await meter?.before();
-  const stream = claude().beta.messages.stream({
-    model: s.model, max_tokens: 64000, ...fallbackFor(s.model),
-    thinking: { type: 'adaptive' }, output_config: { effort, format: betaZodOutputFormat(schema) },
-    system, messages: [{ role: 'user', content: user }],
-  });
-  const msg = await stream.finalMessage();
-  await meter?.after(addUsage(null, msg.usage, s.model));
-  check(msg, 'Schrijven');
-  if (!msg.parsed_output) throw new Error('Schrijven: antwoord had niet de verwachte vorm');
-  return { out: msg.parsed_output, usage: addUsage(null, msg.usage, s.model) };
+  const shape = JSON.stringify(z.toJSONSchema(schema));
+  const ask = `${user}\n\nAnswer with one JSON object in a \`\`\`json fence, nothing after it. It must match this JSON Schema exactly (every field present, no extra fields):\n${shape}`;
+  let usage = null, prompt = ask, problem = '';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await meter?.before();
+    const stream = claude().beta.messages.stream({
+      model: s.model, max_tokens: 64000, ...fallbackFor(s.model),
+      thinking: { type: 'adaptive' }, output_config: { effort },
+      system, messages: [{ role: 'user', content: prompt }],
+    });
+    const msg = await stream.finalMessage();
+    await meter?.after(addUsage(null, msg.usage, s.model));
+    usage = addUsage(usage, msg.usage, s.model);
+    check(msg, 'Schrijven');
+    const text = textOf(msg);
+    try {
+      const out = schema.safeParse(jsonOf(text));
+      if (out.success) return { out: fixIcons(out.data), usage };
+      problem = out.error.issues.slice(0, 8).map(i => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ');
+    } catch (e) { problem = e.message }
+    prompt = `${ask}\n\nYour previous answer did not match the schema (${problem}). Here it is; return it corrected, complete:\n${text.slice(-60000)}`;
+  }
+  throw new Error('Schrijven: antwoord had niet de verwachte vorm (' + problem + ')');
+}
+// an icon outside the list becomes a neutral one
+function fixIcons(node) {
+  if (Array.isArray(node)) node.forEach(fixIcons);
+  else if (node && typeof node === 'object') for (const [k, v] of Object.entries(node)) {
+    if (k === 'icon' && typeof v === 'string') node[k] = ICONS.includes(v) ? v : 'tag'; else fixIcons(v);
+  }
+  return node;
 }
 
 export const getPath = (o, p) => p.split('.').reduce((x, k) => x?.[k], o);

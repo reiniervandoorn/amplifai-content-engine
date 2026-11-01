@@ -242,7 +242,7 @@ Errors are `{"error": "…"}` with a fitting status, sometimes with `field` or `
 - Plus (Opus): €0,60
 - Premium (Fable): €1,40
 
-A revision costs a fraction of that. The estimates become real averages once there are runs; `GET /v1/options` always gives the current one.
+Writing a product again with the same product data (another tone, a retry) reuses the research for 7 days and costs about a third. A revision costs a fraction of that. The estimates become real averages once there are runs; `GET /v1/options` always gives the current one.
 
 **Hard limits**, set on the admin page:
 - per day, default €5
