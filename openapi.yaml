@@ -1,0 +1,443 @@
+openapi: 3.1.0
+info:
+  title: AmplifAI content engine
+  version: 1.0.0
+  description: |
+    Turns a webshop URL into sourced product-guide content. AmplifAI sets the base settings and limits;
+    each shop adjusts within them. Errors are `{ "error": "…", "field"?: "…", "code"?: "…" }` with a fitting status code.
+    402 with `code: "budget"` means a spending limit was reached (live mode only; see /v1/admin/budget).
+servers:
+  - url: http://localhost:4317
+security:
+  - bearer: []
+tags:
+  - { name: tool, description: "The AmplifAI tool: TOOL_API_KEY, or TOOL_TEST_KEY for the same calls with free test texts" }
+  - { name: platform, description: AmplifAI only }
+  - { name: accounts }
+  - { name: products }
+  - { name: jobs }
+  - { name: public, description: For widgets on the shop's site; public key only }
+
+paths:
+  /v1/health:
+    get: { security: [], summary: Is the engine up, and is an Anthropic key set, responses: { '200': { description: ok } } }
+  /v1/meta:
+    get: { security: [], summary: All settings fields, languages, icons and formats, responses: { '200': { description: ok } } }
+  /v1/me:
+    get: { summary: Which role this key has, responses: { '200': { description: "{ role: admin } or { role: account, account }" } } }
+
+  /v1/platform:
+    get: { tags: [platform], summary: Base settings, policy and rules, responses: { '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Platform' } } } } } }
+    patch:
+      tags: [platform]
+      summary: Change the base. Any of defaults, policy, rules, tiers, refresh, webhookUrl, budget.
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/PlatformPatch' } } } }
+      responses: { '200': { description: ok }, '422': { description: invalid value } }
+
+  /v1/accounts:
+    get: { tags: [platform], summary: All shops, responses: { '200': { description: ok } } }
+    post:
+      tags: [platform]
+      summary: Create a shop. The secret key is returned only here.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                id: { type: string }
+                name: { type: string }
+                shopUrl: { type: string }
+                settings: { $ref: '#/components/schemas/Settings' }
+                policy: { $ref: '#/components/schemas/Policy' }
+      responses: { '201': { description: "{ account, secretKey }" } }
+  /v1/accounts/{acc}:
+    parameters: [{ $ref: '#/components/parameters/acc' }]
+    get: { tags: [accounts], responses: { '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } } } } }
+    patch:
+      tags: [accounts]
+      summary: Name, shop URL, webhook, shop-level settings; policy is AmplifAI only
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                shopUrl: { type: [string, 'null'] }
+                webhookUrl: { type: [string, 'null'] }
+                settings: { $ref: '#/components/schemas/Settings' }
+                policy: { $ref: '#/components/schemas/Policy' }
+      responses: { '200': { description: ok }, '403': { description: setting locked by AmplifAI }, '422': { description: value outside the allowed range } }
+    delete: { tags: [platform], summary: Delete a shop and all its content, responses: { '200': { description: ok } } }
+  /v1/accounts/{acc}/keys:
+    parameters: [{ $ref: '#/components/parameters/acc' }]
+    post:
+      tags: [accounts]
+      summary: New secret key (old one stops working) or new public key
+      requestBody: { content: { application/json: { schema: { type: object, properties: { type: { enum: [secret, public] } } } } } }
+      responses: { '200': { description: "{ secretKey } or { publicKey }" } }
+  /v1/accounts/{acc}/settings:
+    parameters: [{ $ref: '#/components/parameters/acc' }]
+    get: { tags: [accounts], summary: Effective settings, where each comes from, the policy and form fields, responses: { '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/ResolvedSettings' } } } } } }
+  /v1/accounts/{acc}/catalog:
+    parameters: [{ $ref: '#/components/parameters/acc' }]
+    get: { tags: [accounts], summary: The last catalog read, responses: { '200': { description: ok } } }
+    post:
+      tags: [accounts]
+      summary: Read the shop's product list (Shopify, WooCommerce, or sitemaps)
+      requestBody: { content: { application/json: { schema: { type: object, properties: { url: { type: string, description: defaults to the shop URL } } } } } }
+      responses: { '200': { description: "{ shop, platform, products: [{ id, url, name, brand, price, image }] }" } }
+  /v1/accounts/{acc}/batch:
+    parameters: [{ $ref: '#/components/parameters/acc' }]
+    post:
+      tags: [jobs]
+      summary: Generate guides for up to 200 products (by URL or id)
+      requestBody: { content: { application/json: { schema: { type: object, properties: { urls: { type: array, items: { type: string } }, productIds: { type: array, items: { type: string } } } } } } }
+      responses: { '202': { description: "{ jobs: [Job | { productId, error }] }" } }
+  /v1/accounts/{acc}/jobs:
+    parameters: [{ $ref: '#/components/parameters/acc' }]
+    get: { tags: [jobs], summary: Recent jobs of this shop, responses: { '200': { description: ok } } }
+
+  /v1/accounts/{acc}/products:
+    parameters: [{ $ref: '#/components/parameters/acc' }]
+    get: { tags: [products], summary: Products in the engine (summaries), responses: { '200': { description: ok } } }
+    post:
+      tags: [products]
+      summary: Add a product by URL and read its page (returns the existing one if already added)
+      requestBody: { content: { application/json: { schema: { type: object, required: [url], properties: { url: { type: string } } } } } }
+      responses: { '201': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Product' } } } } }
+  /v1/accounts/{acc}/products/{pid}:
+    parameters: [{ $ref: '#/components/parameters/acc' }, { $ref: '#/components/parameters/pid' }]
+    get: { tags: [products], responses: { '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Product' } } } } } }
+    patch:
+      tags: [products]
+      summary: Product settings, locks, facts in use, or a whole guide
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                settings: { $ref: '#/components/schemas/Settings' }
+                locked: { type: array, items: { type: string }, description: item paths that stay when the guide is rewritten }
+                removed: { type: array, items: { type: string } }
+                factsOn: { type: array, items: { type: string }, description: ids of facts the writer may use }
+                guide: { $ref: '#/components/schemas/Guide' }
+      responses: { '200': { description: ok } }
+    delete: { tags: [products], responses: { '200': { description: ok } } }
+  /v1/accounts/{acc}/products/{pid}/research:
+    parameters: [{ $ref: '#/components/parameters/acc' }, { $ref: '#/components/parameters/pid' }]
+    post: { tags: [jobs], summary: Find sourced facts again, requestBody: { content: { application/json: { schema: { type: object, properties: { force: { type: boolean, default: true } } } } } }, responses: { '202': { $ref: '#/components/responses/Job' }, '409': { description: a job is already running for this product } } }
+  /v1/accounts/{acc}/products/{pid}/generate:
+    parameters: [{ $ref: '#/components/parameters/acc' }, { $ref: '#/components/parameters/pid' }]
+    post:
+      tags: [jobs]
+      summary: Research if needed, then write the guide. Locked items stay; optional settings are saved on the product first.
+      requestBody: { content: { application/json: { schema: { type: object, properties: { settings: { $ref: '#/components/schemas/Settings' } } } } } }
+      responses: { '202': { $ref: '#/components/responses/Job' }, '409': { description: a job is already running for this product } }
+  /v1/accounts/{acc}/products/{pid}/items/{path}:
+    parameters: [{ $ref: '#/components/parameters/acc' }, { $ref: '#/components/parameters/pid' }, { $ref: '#/components/parameters/path' }]
+    put:
+      tags: [products]
+      summary: Replace one item by hand (locks it unless lock is false)
+      requestBody: { content: { application/json: { schema: { type: object, required: [value], properties: { value: {}, lock: { type: boolean, default: true } } } } } }
+      responses: { '200': { description: ok }, '422': { description: value does not fit the item's shape } }
+    delete: { tags: [products], summary: Remove an item from a list (expect, tips, email items); later locks shift along, responses: { '200': { description: ok } } }
+  /v1/accounts/{acc}/products/{pid}/items/{path}/rewrite:
+    parameters: [{ $ref: '#/components/parameters/acc' }, { $ref: '#/components/parameters/pid' }, { $ref: '#/components/parameters/path' }]
+    post:
+      tags: [jobs]
+      summary: Write one item again, optionally with a wish
+      requestBody: { content: { application/json: { schema: { type: object, properties: { wish: { type: string, maxLength: 300 } } } } } }
+      responses: { '202': { $ref: '#/components/responses/Job' }, '409': { description: locked, or no guide yet } }
+  /v1/accounts/{acc}/products/{pid}/publish:
+    parameters: [{ $ref: '#/components/parameters/acc' }, { $ref: '#/components/parameters/pid' }]
+    post: { tags: [products], summary: Freeze the current draft as the next live version, responses: { '200': { description: "{ version, at }" } } }
+    delete: { tags: [products], summary: Take the guide offline, responses: { '200': { description: ok } } }
+  /v1/accounts/{acc}/products/{pid}/export:
+    parameters: [{ $ref: '#/components/parameters/acc' }, { $ref: '#/components/parameters/pid' }]
+    get:
+      tags: [products]
+      parameters:
+        - { name: format, in: query, schema: { enum: [guide, flat, markdown], default: guide } }
+        - { name: lang, in: query, schema: { type: string } }
+        - { name: version, in: query, schema: { enum: [draft, published], default: draft } }
+      responses: { '200': { description: Document (JSON) or Markdown, content: { application/json: { schema: { $ref: '#/components/schemas/Document' } }, text/markdown: {} } } }
+  /v1/accounts/{acc}/products/{pid}/preview:
+    parameters: [{ $ref: '#/components/parameters/acc' }, { $ref: '#/components/parameters/pid' }]
+    post: { tags: [products], summary: A 30-minute token (and URL, if PREVIEW_URL is set) to show the draft, responses: { '200': { description: "{ token, url, expiresInMinutes }" } } }
+
+  /v1/jobs/{id}:
+    get:
+      tags: [jobs]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Job' } } } } }
+
+  /v1/guides:
+    post:
+      tags: [tool]
+      summary: Make guides for a shop's products with the shop's toggles (creates the shop on first use)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shop]
+              properties:
+                shop: { type: object, properties: { id: { type: string }, name: { type: string }, url: { type: string } } }
+                product: { $ref: '#/components/schemas/ToolProduct' }
+                products: { type: array, maxItems: 500, items: { $ref: '#/components/schemas/ToolProduct' } }
+                settings: { $ref: '#/components/schemas/Settings' }
+                approve: { enum: [review, auto], default: review }
+                regenerate: { type: boolean }
+      responses:
+        '202': { description: "{ shop, guides: [{ product, productId, status, job? }] }. A product whose data changed since its guide was written is rewritten." }
+        '402': { description: "a spending limit is reached (code: budget)" }
+        '403': { description: the test key used on a real shop, or a setting AmplifAI does not let shops change }
+    get:
+      tags: [tool]
+      summary: One guide (with product) or all guides of a shop
+      parameters:
+        - { name: shop, in: query, required: true, schema: { type: string } }
+        - { name: product, in: query, schema: { type: string }, description: product URL or id }
+        - { name: version, in: query, schema: { enum: [latest, published] } }
+        - { name: format, in: query, schema: { enum: [guide, flat, markdown] } }
+        - { name: lang, in: query, schema: { type: string } }
+      responses: { '200': { description: "{ product, productId, status, qa, version, guide } or a list" } }
+  /v1/guides/options:
+    get:
+      tags: [tool]
+      summary: "The toggles a shop may change: options AmplifAI allows, defaults, and the quality levels with their price per order"
+      responses: { '200': { description: "{ tiers: [{ id, name, pricePerOrder, blurb }], languages, settings: { key: { type, label, options?, min?, max?, default } } }" } }
+  /v1/admin/budget:
+    get: { tags: [platform], summary: "Spending limits and what was spent today and this month (EUR)", responses: { '200': { description: "{ dayEUR, monthEUR, guideEUR, todayEUR, monthSpentEUR, dayLeftEUR, monthLeftEUR }" } } }
+  /v1/admin/stop:
+    post: { tags: [platform], summary: "Emergency stop: test mode, waiting jobs cancelled, running ones stop at their next call to Claude", responses: { '200': { description: "{ mode: test, cancelled, stillRunning }" } } }
+  /v1/guides/approve:
+    post:
+      tags: [tool]
+      summary: Put guides live (those that fail the quality check need force)
+      requestBody: { content: { application/json: { schema: { type: object, properties: { shop: { type: string }, product: { type: string }, products: { type: array, items: { type: string } }, force: { type: boolean } } } } } }
+      responses: { '200': { description: "{ guides: [{ product, status, version? }] }" } }
+  /v1/guides/remove:
+    post:
+      tags: [tool]
+      summary: Take a guide offline
+      requestBody: { content: { application/json: { schema: { type: object, properties: { shop: { type: string }, product: { type: string } } } } } }
+      responses: { '200': { description: ok } }
+
+  /v1/public/guide:
+    get:
+      tags: [public]
+      security: []
+      summary: The published guide of one product. CORS open, cached 60 s.
+      parameters:
+        - { name: key, in: query, required: true, schema: { type: string }, description: public key pk_… }
+        - { name: product, in: query, required: true, schema: { type: string }, description: product id or product URL }
+        - { name: format, in: query, schema: { enum: [guide, flat, markdown], default: guide } }
+        - { name: lang, in: query, schema: { type: string } }
+        - { name: preview, in: query, schema: { type: string }, description: preview token; returns the draft instead }
+      responses: { '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Document' } }, text/markdown: {} } }, '404': { description: not published } }
+  /v1/public/products:
+    get:
+      tags: [public]
+      security: []
+      parameters: [{ name: key, in: query, required: true, schema: { type: string } }]
+      responses: { '200': { description: "[{ id, url, version }] of published products" } }
+
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, description: "Admin key, or a shop's secret key sk_…" }
+  parameters:
+    acc: { name: acc, in: path, required: true, schema: { type: string } }
+    pid: { name: pid, in: path, required: true, schema: { type: string } }
+    path: { name: path, in: path, required: true, schema: { type: string }, description: "e.g. hook, story, expect.0, tips.new.1, answerTips.0, shipped.items.2" }
+  responses:
+    Job: { description: started, content: { application/json: { schema: { $ref: '#/components/schemas/Job' } } } }
+  schemas:
+    Text:
+      type: object
+      description: 'One string per language in the guide, e.g. { "nl": "…", "en": "…" }'
+      additionalProperties: { type: string }
+    Src: { type: array, items: { type: string }, description: ids of the sources this item rests on }
+    Settings:
+      type: object
+      description: A partial set; null removes a value from this layer
+      properties:
+        languages: { type: array, items: { enum: [nl, en, de, fr] } }
+        tone: { enum: [warm, neutral, expert, playful] }
+        formality: { enum: [informal, formal] }
+        length: { enum: [standard, short] }
+        tipCount: { type: integer, minimum: 2, maximum: 4 }
+        answerCount: { type: integer, minimum: 3, maximum: 4 }
+        expectCount: { type: integer, minimum: 2, maximum: 3 }
+        momentItems: { type: integer, minimum: 2, maximum: 4 }
+        emails: { type: boolean }
+        extra: { type: string, maxLength: 400 }
+        maxSearches: { type: integer, minimum: 0, maximum: 15 }
+        maxFetches: { type: integer, minimum: 0, maximum: 10 }
+        blockedDomains: { type: array, items: { type: string } }
+        model: { enum: [claude-opus-5-5, claude-sonnet-5-5, claude-fable-5-1] }
+        effort: { enum: [low, medium, high, xhigh] }
+    Policy:
+      type: object
+      additionalProperties:
+        type: object
+        properties:
+          editable: { type: boolean }
+          options: { type: array, items: { type: string } }
+          min: { type: integer }
+          max: { type: integer }
+    Platform:
+      type: object
+      properties:
+        defaults: { $ref: '#/components/schemas/Settings' }
+        policy: { $ref: '#/components/schemas/Policy' }
+        rules: { type: array, items: { type: string } }
+    ToolProduct:
+      description: A product URL, or what the tool already knows about the product (then the engine needs to read less from the shop).
+      oneOf:
+        - { type: string, description: product URL }
+        - type: object
+          required: [url]
+          properties:
+            url: { type: string }
+            name: { type: string }
+            brand: { type: string }
+            price: { type: string, example: "€84,95" }
+            category: { type: string }
+            description: { type: string }
+            image: { type: string }
+            variants: { type: array, items: { type: string } }
+            properties: { type: array, items: { type: string } }
+            sku: { type: string }
+            gtin: { type: string }
+    PlatformPatch:
+      type: object
+      properties:
+        defaults: { $ref: '#/components/schemas/Settings' }
+        policy: { $ref: '#/components/schemas/Policy' }
+        rules: { type: array, items: { type: string } }
+        tiers: { type: object, description: "{ basis|plus|premium: { name, model, pricePerOrder, blurb } }" }
+        refresh: { enum: [weekly, monthly, off] }
+        webhookUrl: { type: [string, 'null'] }
+        budget: { $ref: '#/components/schemas/Budget' }
+    Budget:
+      type: object
+      description: Hard spending limits for live mode, in euro. The engine refuses the next call to Claude once one is reached.
+      properties:
+        dayEUR: { type: number, default: 5 }
+        monthEUR: { type: number, default: 25 }
+        guideEUR: { type: number, default: 2, description: a guide that costs more than this stops }
+    ResolvedSettings:
+      type: object
+      properties:
+        effective: { $ref: '#/components/schemas/Settings' }
+        from: { type: object, additionalProperties: { enum: [platform, account, product] } }
+        policy: { $ref: '#/components/schemas/Policy' }
+        warnings: { type: array, items: { type: string } }
+        fields: { type: object, description: form description per setting for this role }
+    Account:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        shopUrl: { type: [string, 'null'] }
+        publicKey: { type: string }
+        secretKeyHint: { type: string }
+        webhookUrl: { type: [string, 'null'] }
+        webhookSecret: { type: string }
+        settings: { $ref: '#/components/schemas/Settings' }
+        policy: { $ref: '#/components/schemas/Policy' }
+        usage: { type: object, properties: { input: { type: integer }, output: { type: integer }, searches: { type: integer } } }
+    Product:
+      type: object
+      properties:
+        id: { type: string }
+        url: { type: string }
+        status: { enum: [new, researched, draft, published] }
+        page: { type: object, description: what was read from the product page }
+        research: { type: object, properties: { facts: { type: array, items: { $ref: '#/components/schemas/Fact' } }, dropped: { type: integer } } }
+        guide: { $ref: '#/components/schemas/Guide' }
+        settings: { $ref: '#/components/schemas/Settings' }
+        effectiveSettings: { $ref: '#/components/schemas/Settings' }
+        settingsFrom: { type: object }
+        locked: { type: array, items: { type: string } }
+        published: { type: [object, 'null'], properties: { version: { type: integer }, at: { type: string } } }
+        warnings: { type: array, items: { type: string } }
+    Fact:
+      type: object
+      properties:
+        id: { type: string }
+        category: { enum: [brand, special, first_use, care, use, compat, general] }
+        claim: { type: string }
+        url: { type: string }
+        title: { type: string }
+        on: { type: boolean }
+    Tip:
+      type: object
+      properties: { icon: { type: string }, title: { $ref: '#/components/schemas/Text' }, text: { $ref: '#/components/schemas/Text' }, src: { $ref: '#/components/schemas/Src' } }
+    Item:
+      type: object
+      properties: { icon: { type: string }, lead: { $ref: '#/components/schemas/Text' }, text: { $ref: '#/components/schemas/Text' }, src: { $ref: '#/components/schemas/Src' } }
+    Guide:
+      type: object
+      properties:
+        short: { $ref: '#/components/schemas/Text' }
+        title: { $ref: '#/components/schemas/Text' }
+        card: { type: object, properties: { h: { $ref: '#/components/schemas/Text' }, s: { $ref: '#/components/schemas/Text' } } }
+        hook: { $ref: '#/components/schemas/Text' }
+        story: { type: object, properties: { text: { $ref: '#/components/schemas/Text' }, src: { $ref: '#/components/schemas/Src' } } }
+        expect: { type: array, items: { $ref: '#/components/schemas/Item' } }
+        fact: { type: object, properties: { icon: { type: string }, text: { $ref: '#/components/schemas/Text' }, src: { $ref: '#/components/schemas/Src' } } }
+        lq: { type: object, description: experience question, properties: { q: { $ref: '#/components/schemas/Text' }, new: { $ref: '#/components/schemas/Text' }, reg: { $ref: '#/components/schemas/Text' }, pro: { $ref: '#/components/schemas/Text' } } }
+        q:
+          type: object
+          properties:
+            eye: { $ref: '#/components/schemas/Text' }
+            title: { $ref: '#/components/schemas/Text' }
+            sub: { $ref: '#/components/schemas/Text' }
+            options:
+              type: array
+              items:
+                type: object
+                properties:
+                  v: { type: string }
+                  label: { $ref: '#/components/schemas/Text' }
+                  note: { $ref: '#/components/schemas/Text' }
+                  ok: { type: boolean, description: false when the customer should check or do something first }
+                  h: { $ref: '#/components/schemas/Text' }
+                  lines: { type: array, items: { $ref: '#/components/schemas/Text' } }
+                  src: { $ref: '#/components/schemas/Src' }
+        tips: { type: object, properties: { new: { type: array, items: { $ref: '#/components/schemas/Tip' } }, reg: { type: array, items: { $ref: '#/components/schemas/Tip' } }, pro: { type: array, items: { $ref: '#/components/schemas/Tip' } } } }
+        answerTips: { type: array, items: { allOf: [{ $ref: '#/components/schemas/Tip' }, { type: object, properties: { v: { type: string }, why: { $ref: '#/components/schemas/Text' } } }] } }
+        shipped: { type: object, properties: { title: { $ref: '#/components/schemas/Text' }, items: { type: array, items: { $ref: '#/components/schemas/Item' } } } }
+        delivered: { type: object, properties: { title: { $ref: '#/components/schemas/Text' }, items: { type: array, items: { $ref: '#/components/schemas/Item' } } } }
+    Document:
+      type: object
+      properties:
+        formatVersion: { type: integer }
+        account: { type: string }
+        productId: { type: string }
+        url: { type: string }
+        shop: { type: object, properties: { name: { type: string }, domain: { type: [string, 'null'] }, accent: { type: [string, 'null'] } } }
+        product: { type: object, properties: { name: { type: string }, brand: { type: [string, 'null'] }, price: { type: [string, 'null'] }, image: { type: [string, 'null'] }, variants: { type: array, items: { type: string } } } }
+        languages: { type: array, items: { type: string } }
+        language: { type: string, description: only in format=flat }
+        settings: { type: object, properties: { tone: { type: string }, formality: { type: string }, length: { type: string } } }
+        guide: { $ref: '#/components/schemas/Guide' }
+        sources: { type: array, items: { $ref: '#/components/schemas/Fact' } }
+    Job:
+      type: object
+      properties:
+        id: { type: string }
+        type: { enum: [research, generate, rewrite] }
+        accountId: { type: string }
+        productId: { type: string }
+        status: { enum: [queued, running, done, failed] }
+        progress: { type: array, items: { type: object, properties: { at: { type: string }, msg: { type: string } } } }
+        error: { type: [string, 'null'] }
+        createdAt: { type: string }
+        finishedAt: { type: [string, 'null'] }

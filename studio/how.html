@@ -1,0 +1,109 @@
+<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hoe de content engine werkt</title>
+<style>
+:root{--bg:#F7F6F3;--card:#fff;--ink:#141416;--sub:#5F5F66;--mut:#A3A3AA;--line:rgba(20,20,22,.08);--fill:#F1F0EC;--acc:#0F6B5C;--accbg:#E5F1EE;--sys:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;color-scheme:light}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--sys);-webkit-font-smoothing:antialiased}
+.wrap{max-width:860px;margin:0 auto;padding:48px 24px 80px}
+.eyebrow{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--acc)}
+h1{font-size:40px;line-height:1.1;letter-spacing:-.03em;margin:10px 0 16px}
+h2{font-size:24px;letter-spacing:-.02em;margin:56px 0 8px}
+p.big{font-size:20px;color:var(--sub);margin:0;max-width:680px}
+p{color:var(--sub);margin:0 0 12px}
+.card{background:var(--card);border-radius:22px;box-shadow:0 0 0 1px var(--line);padding:24px}
+/* who does what */
+.flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:12px;align-items:stretch;margin-top:20px}
+.actor{background:var(--card);border-radius:20px;box-shadow:0 0 0 1px var(--line);padding:18px;text-align:center}
+.actor .ico{width:52px;height:52px;border-radius:16px;margin:0 auto 10px;display:grid;place-items:center;background:var(--fill)}
+.actor.engine{background:var(--ink);color:#fff;box-shadow:none}
+.actor.engine .ico{background:rgba(255,255,255,.12)}
+.actor.engine p{color:rgba(255,255,255,.7)}
+.actor b{display:block;font-size:17px;margin-bottom:4px}
+.actor p{font-size:14px;margin:0}
+.arrow{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;color:var(--mut);font-size:12px;text-align:center;min-width:90px}
+.arrow svg{color:var(--mut)}
+/* steps */
+.steps{display:grid;gap:12px;margin-top:20px;counter-reset:s}
+.st{display:grid;grid-template-columns:56px 1fr;gap:16px;background:var(--card);border-radius:20px;box-shadow:0 0 0 1px var(--line);padding:20px}
+.st .ico{width:56px;height:56px;border-radius:16px;background:var(--accbg);color:var(--acc);display:grid;place-items:center}
+.st b{display:block;font-size:18px;margin-bottom:2px}
+.st p{margin:0}
+.st .eg{margin-top:8px;font-size:14px;background:var(--fill);border-radius:12px;padding:10px 12px;color:#45454B}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px}
+.cols .card b{display:block;font-size:17px;margin-bottom:6px}
+.cols .card p{margin:0;font-size:15px}
+ul.checks{list-style:none;padding:0;margin:16px 0 0;display:grid;gap:10px}
+ul.checks li{display:flex;gap:12px;align-items:flex-start;background:var(--card);border-radius:16px;box-shadow:0 0 0 1px var(--line);padding:14px 16px;color:#3A3A40}
+ul.checks svg{flex-shrink:0;color:var(--acc);margin-top:3px}
+dl{margin:16px 0 0;display:grid;grid-template-columns:180px 1fr;gap:12px 20px}
+dt{font-weight:600}
+dd{margin:0;color:var(--sub)}
+.foot{margin-top:56px;font-size:13px;color:var(--mut)}
+@media (max-width:760px){
+  .wrap{padding:32px 16px 60px}
+  h1{font-size:30px}
+  p.big{font-size:17px}
+  .flow{grid-template-columns:1fr}
+  .arrow{flex-direction:row;min-width:0;padding:2px 0}
+  .arrow svg{transform:rotate(90deg)}
+  .cols{grid-template-columns:1fr}
+  dl{grid-template-columns:1fr;gap:2px 0}
+  dd{margin-bottom:12px}
+}
+</style></head><body><div class="wrap">
+<div class="eyebrow">AmplifAI</div>
+<h1>Hoe de content engine werkt</h1>
+<p class="big">De content engine is de schrijver achter de schermen. Voor elk product in een webshop maakt hij een korte gids: wat je kunt verwachten, de tips die je had willen krijgen, en wat je moet weten voordat het pakket er is. Shops merken er niets van; zij werken in de AmplifAI-tool.</p>
+
+<h2>Wie doet wat</h2>
+<p>Denk aan een restaurant. De shop bestelt aan tafel, de tool is de bediening, de engine is de keuken.</p>
+<div class="flow">
+  <div class="actor"><div class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5L5.5 4h13L20 9.5"/><path d="M4 9.5v10h16v-10"/><path d="M4 9.5c0 1.4 1.3 2.5 2.7 2.5s2.6-1.1 2.6-2.5c0 1.4 1.2 2.5 2.7 2.5s2.7-1.1 2.7-2.5c0 1.4 1.2 2.5 2.6 2.5S20 10.9 20 9.5"/><path d="M10 19.5v-4h4v4"/></svg></div><b>De webshop</b><p>Kiest in de AmplifAI-tool hoe de gidsen klinken: vriendelijk of zakelijk, je of u, welke kwaliteit.</p></div>
+  <div class="arrow"><svg width="28" height="16" viewBox="0 0 28 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 8h22M18 2l6 6-6 6"/></svg>keuzes</div>
+  <div class="actor"><div class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><b>De AmplifAI-tool</b><p>Wat de shop ziet en bedient. Vraagt de engine om een gids en toont hem aan klanten.</p></div>
+  <div class="arrow"><svg width="28" height="16" viewBox="0 0 28 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 8h22M18 2l6 6-6 6"/></svg>“maak een gids”</div>
+  <div class="actor engine"><div class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><b>De content engine</b><p>Leest, zoekt bronnen, schrijft, controleert en houdt elke gids actueel.</p></div>
+</div>
+
+<h2>Wat er gebeurt als een gids gemaakt wordt</h2>
+<p>In een paar minuten, voor elk product apart.</p>
+<div class="steps">
+  <div class="st"><div class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg></div><div><b>1 · Lezen</b><p>De engine leest de productpagina in de webshop: naam, merk, beschrijving, maten. Zoals een nieuwe medewerker eerst het etiket leest.</p><div class="eg">Voorbeeld: “Wetsuit met 4 mm neopreen op romp en benen, 3 mm op de schouders.”</div></div></div>
+  <div class="st"><div class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg></div><div><b>2 · Onderzoeken</b><p>Daarna zoekt hij betrouwbare bronnen: de website van het merk, de handleiding, de fabrikant, onderzoek. Reviews, tests en vergelijkingssites gebruikt hij nooit. Elk feit dat hij vindt, bewaart hij met de plek waar het staat.</p><div class="eg">Voorbeeld: “Het merk raadt aan om de wetsuit na elke zwembeurt met zoet water te spoelen” · bron: onderhoudspagina van het merk.</div></div></div>
+  <div class="st"><div class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></div><div><b>3 · Schrijven</b><p>Met die feiten schrijft de AI (Claude, van Anthropic) de gids, in de toon die de shop koos en in elke gekozen taal. Een opening, wat je de eerste week kunt verwachten, een vraag aan de klant, en tips die passen bij het antwoord.</p><div class="eg">Voorbeeld: “Op het droge voelt hij te strak. In het water ontspant het neopreen en zit hij goed.”</div></div></div>
+  <div class="st"><div class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.8 2.8L16 9.6"/></svg></div><div><b>4 · Controleren</b><p>Elke gids gaat langs de kwaliteitscheck van AmplifAI: verkoopt hij niets, heeft elk getal een bron, belooft hij geen levertijd, spreekt hij de klant aan zoals de shop wil? Gaat er iets mis, dan schrijft de engine dat stuk opnieuw.</p></div></div>
+  <div class="st"><div class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.5L12 3.5l8.5 4v9L12 20.5l-8.5-4z"/><path d="M3.5 7.5L12 11.5l8.5-4M12 11.5v9"/></svg></div><div><b>5 · Klaarzetten</b><p>De gids staat klaar. De shop keurt hem goed in de AmplifAI-tool, of laat goede gidsen vanzelf live gaan. Vanaf dan ziet elke klant hem na het betalen, en in de verzend- en bezorgmail.</p></div></div>
+</div>
+
+<h2>En daarna: vanzelf actueel</h2>
+<div class="cols">
+  <div class="card"><b>Elke week of maand</b><p>De engine kijkt opnieuw naar de webshop. Nieuwe producten krijgen een gids, verdwenen producten gaan offline, en een product dat veranderd is, krijgt een nieuwe gids.</p></div>
+  <div class="card"><b>Meteen als het moet</b><p>Voegt een shop een product toe of haalt hij er een weg, dan hoort de engine dat direct van de tool. En de engine laat de tool weten wanneer een gids klaar of veranderd is.</p></div>
+</div>
+
+<h2>Waarom je erop kunt vertrouwen</h2>
+<ul class="checks">
+  <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Elk feit heeft een bron die de engine echt heeft gezien. Wat niet te controleren is, gaat er niet in.</li>
+  <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>De gids verkoopt nooit iets. Hij helpt: “een ventilator scheelt veel”, niet “koop een ventilator”.</li>
+  <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Geen beloftes over levering, en nooit iets dat klanten ontmoedigt om te ruilen.</li>
+  <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Alleen wat de bestelling en de antwoorden van de klant vertellen. Geen gissingen over wie de klant is.</li>
+  <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>AmplifAI bepaalt de regels en de grenzen. Shops kiezen binnen die grenzen hun stijl.</li>
+</ul>
+
+<h2>Wat het kost</h2>
+<div class="cols">
+  <div class="card"><b>Voor de shop</b><p>Een vast bedrag per bestelling waarbij de klant de gids opent, afhankelijk van de gekozen kwaliteit (vanaf €0,05). Minimaal €19 per maand, de eerste 60 dagen gratis.</p></div>
+  <div class="card"><b>Voor AmplifAI</b><p>Een gids wordt één keer geschreven en daarna alleen opnieuw als het product verandert. De kosten daarvan (de AI en de zoekopdrachten) ziet AmplifAI per gids en per shop in de console. Er staat een vast plafond op, per dag, per maand en per gids: is dat bereikt, dan stopt de keuken vanzelf, voordat er iets extra kost. En er is een noodstop.</p></div>
+</div>
+
+<h2>Woordenlijst</h2>
+<dl>
+  <dt>Gids</dt><dd>De korte uitleg die een klant na het betalen krijgt, per product.</dd>
+  <dt>Bron</dt><dd>De pagina waar een feit vandaan komt, zoals de site van het merk.</dd>
+  <dt>Kwaliteitscheck</dt><dd>De automatische controle op de regels van AmplifAI.</dd>
+  <dt>Kwaliteit (Basis, Plus, Premium)</dt><dd>Hoe grondig de engine onderzoekt en schrijft; bepaalt de prijs per bestelling.</dd>
+  <dt>Testmodus</dt><dd>Alles werkt met voorbeeldteksten, zonder kosten. Handig om te laten zien.</dd>
+  <dt>Live</dt><dd>De AI schrijft echte gidsen, en klanten zien ze.</dd>
+</dl>
+<div class="foot">AmplifAI content engine</div>
+</div></body></html>
