@@ -94,7 +94,8 @@ paths:
   /v1/admin/settings:
     patch:
       tags: [admin]
-      summary: Spending limits and the model behind each quality level
+      summary: Spending limits, the model behind each quality level, the general instructions and the defaults for shops
+      description: For instructions and defaults, null for a field puts back the built-in default. GET /v1/admin/status returns instructionFields and settingFields to draw the form.
       requestBody:
         content:
           application/json:
@@ -102,6 +103,22 @@ paths:
               type: object
               properties:
                 budget: { $ref: '#/components/schemas/Budget' }
+                instructions:
+                  type: object
+                  properties:
+                    factsMin: { type: integer, minimum: 5, maximum: 40, default: 18 }
+                    factsMax: { type: integer, minimum: 8, maximum: 60, default: 30 }
+                    questionIdeas: { type: integer, minimum: 1, maximum: 5, default: 3 }
+                    maxSearches: { type: integer, minimum: 0, maximum: 15, default: 8 }
+                    maxFetches: { type: integer, minimum: 0, maximum: 10, default: 6 }
+                    blockedDomains: { type: array, items: { type: string } }
+                    specialCount: { type: integer, minimum: 1, maximum: 4, default: 2 }
+                    careCount: { type: integer, minimum: 1, maximum: 5, default: 3 }
+                    headlineWords: { type: integer, minimum: 4, maximum: 12, default: 8 }
+                    effort: { type: string, enum: [low, medium, high, xhigh], default: high }
+                    extra: { type: string, maxLength: 2000, description: Extra instruction for all writing }
+                    rules: { type: array, items: { type: string }, maxItems: 30, description: The fixed rules in every writing prompt }
+                defaults: { $ref: '#/components/schemas/Settings' }
                 levels:
                   type: object
                   additionalProperties: { type: object, properties: { model: { type: string, enum: [claude-haiku-5-5, claude-sonnet-5-5, claude-opus-5-5, claude-fable-5-1] } } }

@@ -7,76 +7,136 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f5f5f7;--card:#fff;--ink:#1d1d1f;--mute:#6e6e73;--line:#e5e5ea;--accent:#0071e3;--ok:#1f8a4c;--warn:#b25e00;--bad:#c62828;--soft:#f0f0f3;--r:14px}
+:root{--bg:#f5f5f7;--card:#fff;--ink:#1d1d1f;--mute:#6e6e73;--faint:#a1a1a6;--line:#e8e8ed;--accent:#0071e3;--accent-soft:#eef5ff;--ok:#1f8a4c;--ok-soft:#e9f6ee;--warn:#a65b00;--warn-soft:#fff4e5;--bad:#c62828;--bad-soft:#fdecec;--soft:#f2f2f5;--r:16px}
 *{box-sizing:border-box}
+html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
-main{max-width:920px;margin:0 auto;padding:28px 16px 80px}
-header{display:flex;align-items:center;gap:12px;margin-bottom:22px;flex-wrap:wrap}
-h1{font-size:22px;font-weight:600;margin:0;letter-spacing:-.01em}
-h2{font-size:16px;font-weight:600;margin:0 0 4px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.top{position:sticky;top:0;z-index:5;background:rgba(245,245,247,.92);border-bottom:1px solid var(--line)}
+.top .in{max-width:1120px;margin:0 auto;padding:14px 16px 0;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+h1{font-size:18px;font-weight:600;margin:0;letter-spacing:-.01em}
+nav.tabs{display:flex;gap:2px;width:100%;overflow-x:auto;scrollbar-width:none}
+nav.tabs a{padding:10px 12px;color:var(--mute);font-weight:500;font-size:14px;border-bottom:2px solid transparent;white-space:nowrap;text-decoration:none}
+nav.tabs a.on{color:var(--ink);border-color:var(--ink)}
+main{max-width:1120px;margin:0 auto;padding:22px 16px 90px}
+h2{font-size:17px;font-weight:600;margin:0 0 4px;letter-spacing:-.01em}
+h3{font-size:13px;font-weight:600;margin:0;color:var(--mute);text-transform:uppercase;letter-spacing:.04em}
 p{margin:0 0 10px}
 .mute{color:var(--mute)}
 .small{font-size:13px}
-.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:99px;background:var(--soft);color:var(--mute)}
-.pill.live{background:#e7f6ec;color:var(--ok)}
-.pill.test{background:#eef4ff;color:var(--accent)}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px;background:var(--soft);color:var(--mute);white-space:nowrap}
+.pill.live{background:var(--ok-soft);color:var(--ok)}
+.pill.test{background:var(--accent-soft);color:var(--accent)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
 .card{background:var(--card);border-radius:var(--r);padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.one{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
 label.f{display:block;font-size:13px;color:var(--mute)}
 label.f input,label.f select,label.f textarea{margin-top:4px}
+.help{display:block;font-size:12px;color:var(--faint);margin-top:3px}
 input,select,textarea{width:100%;font:inherit;color:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff}
-textarea{min-height:76px;resize:vertical}
+textarea{min-height:80px;resize:vertical}
 input:focus,select:focus,textarea:focus{outline:2px solid #0071e333;border-color:var(--accent)}
 button{font:inherit;font-weight:500;border:0;border-radius:99px;padding:9px 16px;cursor:pointer;background:var(--soft);color:var(--ink)}
 button.primary{background:var(--accent);color:#fff}
-button.danger{background:#fdecec;color:var(--bad)}
+button.danger{background:var(--bad-soft);color:var(--bad)}
+button.link{background:none;padding:0;color:var(--accent);font-weight:500}
 button:disabled{opacity:.5;cursor:default}
 .seg{display:inline-flex;background:var(--soft);border-radius:99px;padding:3px}
 .seg button{background:transparent;padding:6px 14px}
 .seg button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
-.meter{height:6px;background:var(--soft);border-radius:9px;overflow:hidden;margin:6px 0 2px}
-.meter i{display:block;height:100%;background:var(--accent);border-radius:9px}
-.meter.full i{background:var(--bad)}
-.key{display:flex;gap:8px;align-items:center}
-.key code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--soft);padding:8px 10px;border-radius:10px;font-size:13px}
-table{width:100%;border-collapse:collapse;font-size:14px}
-td,th{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
-th{font-weight:500;color:var(--mute);font-size:12px}
-.scroll{overflow-x:auto}
 .checks{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
 .checks label{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--ink)}
 .checks input{width:auto}
 .note{padding:10px 12px;border-radius:10px;background:var(--soft);font-size:14px;margin:10px 0}
-.note.bad{background:#fdecec;color:var(--bad)}
-.note.warn{background:#fff4e5;color:var(--warn)}
-.piece{border-top:1px solid var(--line);padding:12px 0}
-.piece:first-child{border-top:0}
-.piece .head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
-.piece .path{font:12px ui-monospace,Menlo,monospace;color:var(--mute)}
-.piece .edit{font-size:13px;padding:4px 10px}
-.piece ul{margin:6px 0 0;padding-left:18px}
-.piece b{font-weight:600}
-.src{font-size:12px;color:var(--accent);vertical-align:super}
-.issue{font-size:13px}
+.note.bad{background:var(--bad-soft);color:var(--bad)}
+.note.warn{background:var(--warn-soft);color:var(--warn)}
+.note.ok{background:var(--ok-soft);color:var(--ok)}
+.hide{display:none!important}
+.key{display:flex;gap:8px;align-items:center}
+.key code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--soft);padding:8px 10px;border-radius:10px;font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:9px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-weight:500;color:var(--mute);font-size:12px}
+.scroll{overflow-x:auto}
+.meter{height:6px;background:var(--soft);border-radius:9px;overflow:hidden;margin:6px 0 2px}
+.meter i{display:block;height:100%;background:var(--accent);border-radius:9px}
+.meter.full i{background:var(--bad)}
+.stat b{font-size:20px;font-weight:600;letter-spacing:-.01em}
+
+/* try it */
+.try{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+@media (min-width:980px){.try{grid-template-columns:360px minmax(0,1fr)}.try .form{position:sticky;top:108px}}
+.empty{text-align:center;padding:60px 20px;color:var(--mute)}
+.reshead{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-start;justify-content:space-between}
+.reshead h2{font-size:20px}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:14px -4px 0;padding:0 4px}
+.chips a{flex:none;font-size:13px;padding:6px 12px;border-radius:99px;background:var(--soft);color:var(--ink);text-decoration:none}
+.chips a .n{color:var(--faint);margin-left:4px}
+.group{scroll-margin-top:120px}
+.group>.gh{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
+.group>.gh p{margin:2px 0 0;font-size:13px;color:var(--mute)}
+.pieces{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.pieces.two{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.piece{border:1px solid var(--line);border-radius:12px;padding:12px 14px;position:relative}
+.piece.flag{border-color:#f3c1c1}
+.piece .ph{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px}
+.piece .lbl{font-size:12px;color:var(--mute);font-weight:500}
+.piece .edit{font-size:12px;padding:3px 10px;opacity:.75}
+.piece:hover .edit{opacity:1}
+.piece .t{font-weight:600}
+.piece .big{font-size:18px;font-weight:600;letter-spacing:-.01em;line-height:1.3}
+.piece ul{margin:4px 0 0;padding-left:18px}
+.piece li{margin:4px 0}
+.src{display:inline-block;font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:0 5px;margin-left:3px;vertical-align:1px;cursor:pointer}
+.src.shop{color:var(--warn);background:var(--warn-soft)}
+.issue{font-size:12px;margin-top:6px}
 .issue.error{color:var(--bad)}
 .issue.warn{color:var(--warn)}
-.wish{display:flex;gap:8px;margin-top:8px}
-pre{background:#1d1d1f;color:#f5f5f7;padding:14px;border-radius:12px;overflow:auto;font-size:12px;max-height:420px}
-.progress{font-size:13px;color:var(--mute)}
-.hide{display:none!important}
-@media (max-width:560px){.wish{flex-direction:column}}
+.wish{display:flex;gap:8px;margin-top:10px}
+.levels{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.levels h4{margin:0 0 6px;font-size:13px;font-weight:600}
+.opt{border-top:1px solid var(--line);padding-top:8px;margin-top:8px}
+.opt:first-of-type{border-top:0;padding-top:0;margin-top:4px}
+.badge-ok{color:var(--ok);font-weight:600}
+.badge-check{color:var(--warn);font-weight:600}
+.sources ol{margin:0;padding-left:0;list-style:none}
+.sources li{display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
+.sources li:first-child{border-top:0}
+.sources li.unused{opacity:.55}
+.sources li:target{background:var(--accent-soft);border-radius:8px}
+.sources .dom{font-size:12px;color:var(--mute)}
+pre{background:#1d1d1f;color:#f5f5f7;padding:14px;border-radius:12px;overflow:auto;font-size:12px;max-height:520px;margin:0}
+.progress{display:flex;gap:10px;align-items:center;font-size:14px;color:var(--mute);padding:14px 0}
+.spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* instructions */
+.savebar{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.95);border-top:1px solid var(--line);padding:12px 16px;z-index:6}
+.savebar .in{max-width:1120px;margin:0 auto;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.rules textarea{min-height:220px;font-size:14px}
+@media (max-width:560px){.wish{flex-direction:column}.card{padding:16px}}
 </style>
 </head>
 <body>
-<main>
-  <header>
-    <h1>Content engine</h1>
-    <span id="modePill" class="pill">…</span>
-    <span class="mute small" style="margin-left:auto">Alleen voor AmplifAI</span>
-  </header>
+<div class="top"><div class="in">
+  <h1>Content engine</h1>
+  <span id="modePill" class="pill">…</span>
+  <span class="mute small" style="margin-left:auto">Beheer · alleen voor AmplifAI</span>
+  <nav class="tabs hide" id="tabs">
+    <a href="#proberen" data-tab="proberen">Proberen</a>
+    <a href="#instructies" data-tab="instructies">Instructies</a>
+    <a href="#kosten" data-tab="kosten">Kosten en grenzen</a>
+    <a href="#koppeling" data-tab="koppeling">Koppeling</a>
+    <a href="#taken" data-tab="taken">Taken</a>
+  </nav>
+</div></div>
 
-  <section id="login" class="card hide">
+<main>
+  <section id="login" class="card hide" style="max-width:520px">
     <h2>Inloggen</h2>
     <p class="mute">Met de admin-sleutel. Op je eigen computer staat die in <code>data/admin-key.txt</code>.</p>
     <div class="row">
@@ -86,8 +146,98 @@ pre{background:#1d1d1f;color:#f5f5f7;padding:14px;border-radius:12px;overflow:au
     <p id="loginErr" class="note bad hide"></p>
   </section>
 
-  <div id="app" class="hide">
-    <section class="card">
+  <!-- ───────── Proberen ───────── -->
+  <section data-page="proberen" class="hide">
+    <div class="try">
+      <div class="card form">
+        <h2>Product</h2>
+        <p class="mute small">Dezelfde aanroep die de tool doet. Wat je leeg laat, leest de engine van de productpagina.</p>
+        <div class="one">
+          <label class="f">Productpagina (url)<input id="pUrl" placeholder="https://shop.nl/products/…"></label>
+          <div class="grid">
+            <label class="f">Naam<input id="pName"></label>
+            <label class="f">Merk<input id="pBrand"></label>
+          </div>
+          <label class="f">Beschrijving<textarea id="pDesc"></textarea></label>
+          <label class="f">Webshop<input id="sName" placeholder="Naam van de shop"></label>
+        </div>
+        <h3 style="margin:18px 0 8px">Instellingen van de shop</h3>
+        <div class="grid">
+          <label class="f">Toon<select id="sTone"></select></label>
+          <label class="f">Aanspreekvorm<select id="sForm"></select></label>
+          <label class="f">Kwaliteit<select id="sQuality"></select></label>
+          <label class="f">Lengte<select id="sLength"></select></label>
+        </div>
+        <div class="checks" id="sLangs"></div>
+        <label class="f" style="margin-top:10px">Stijlwens<input id="sStyle" placeholder="Bijv. kort en zakelijk"></label>
+        <div class="checks" style="margin-top:14px"><label><input type="checkbox" id="useTest" checked> Gratis testteksten (testsleutel)</label></div>
+        <div style="margin-top:14px"><button class="primary" id="writeBtn" style="width:100%">Schrijf de teksten</button></div>
+        <p id="costLine" class="small mute" style="margin:8px 0 0;text-align:center"></p>
+        <p id="tryMsg" class="note hide"></p>
+      </div>
+
+      <div>
+        <div id="progressBox" class="card hide"><div class="progress"><span class="spin"></span><span id="progress">Bezig…</span></div></div>
+        <div id="emptyBox" class="card empty">
+          <h2>Nog niets geschreven</h2>
+          <p>Vul links een product in en klik op <b>Schrijf de teksten</b>.<br>Het resultaat verschijnt hier, per onderdeel van de gids.</p>
+        </div>
+        <div id="result" class="hide">
+          <div class="card">
+            <div class="reshead">
+              <div>
+                <h2 id="resTitle"></h2>
+                <div class="row small mute" id="resMeta"></div>
+              </div>
+              <div class="row">
+                <div class="seg" id="langSeg"></div>
+                <div class="seg" id="viewSeg"><button data-view="read" class="on">Leesbaar</button><button data-view="json">JSON</button></div>
+              </div>
+            </div>
+            <div id="qualityBox"></div>
+            <nav class="chips" id="chips"></nav>
+          </div>
+          <div id="readView"></div>
+          <div id="jsonView" class="card hide"><p class="mute small">Dit is precies wat de tool krijgt en bewaart. Voor een wijziging stuurt de tool het in zijn geheel terug.</p><pre id="json"></pre></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── Instructies ───────── -->
+  <section data-page="instructies" class="hide">
+    <div class="card">
+      <h2>Algemene instructies</h2>
+      <p class="mute small" style="margin:0">Hoe de engine voor elk product onderzoekt en schrijft. De tool kan deze niet aanpassen; shops kiezen alleen toon, aanspreekvorm, talen, kwaliteit en aantallen. Wijzigingen gelden voor alles wat hierna geschreven wordt.</p>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between"><h2>Onderzoek</h2><button class="link" data-reset="research">Standaard</button></div>
+      <p class="mute small">Claude zoekt bij het merk en de fabrikant naar feiten, elk met een bron.</p>
+      <div class="grid" id="iResearch"></div>
+      <div class="one" id="iResearchLong" style="margin-top:12px"></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between"><h2>Schrijven</h2><button class="link" data-reset="writing">Standaard</button></div>
+      <p class="mute small">Vaste aantallen en de toon van de opdracht. De aantallen voor tips, antwoorden, "wat is normaal" en e-mails kiest de shop; de standaard daarvoor staat hieronder.</p>
+      <div class="grid" id="iWriting"></div>
+      <div class="one" id="iWritingLong" style="margin-top:12px"></div>
+    </div>
+    <div class="card rules">
+      <div class="row" style="justify-content:space-between"><h2>Vaste regels</h2><button class="link" data-reset="rules">Standaard</button></div>
+      <p class="mute small">Gaan in elke schrijfopdracht mee, in het Engels. De automatische kwaliteitscheck controleert de standaardregels (niet verkopen, geen bezorgbelofte, retour niet ontmoedigen, bronnen bij getallen, je/u). Een regel die je toevoegt volgt Claude wel, maar wordt niet automatisch gecontroleerd.</p>
+      <div id="iRules"></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between"><h2>Standaard voor shops</h2><button class="link" data-reset="defaults">Standaard</button></div>
+      <p class="mute small">Wat de engine gebruikt als de tool een instelling niet meestuurt. De tool ziet deze standaard ook bij <code>GET /v1/options</code>.</p>
+      <div class="grid" id="iDefaults"></div>
+      <div class="checks" id="iDefaultLangs"></div>
+    </div>
+  </section>
+
+  <!-- ───────── Kosten en grenzen ───────── -->
+  <section data-page="kosten" class="hide">
+    <div class="card">
       <h2>Test of live</h2>
       <p class="mute small">In testmodus schrijft de engine vaste testteksten: gratis, zonder Anthropic. Live schrijft Claude echte teksten, binnen de grenzen hieronder. De testsleutel van de tool krijgt altijd testteksten.</p>
       <div class="row" style="margin-bottom:14px">
@@ -98,125 +248,118 @@ pre{background:#1d1d1f;color:#f5f5f7;padding:14px;border-radius:12px;overflow:au
         <div class="row" style="margin-top:4px"><input id="anthropicKey" type="password" placeholder="sk-ant-…" style="flex:1;min-width:200px"><button id="keyBtn">Opslaan</button></div>
       </label>
       <p id="aiMsg" class="note hide"></p>
-    </section>
-
-    <section class="card">
+    </div>
+    <div class="card">
       <h2>Uitgaven bij Anthropic</h2>
       <p class="mute small">Vaste grenzen. Elke aanroep van Claude controleert ze eerst; bij de grens stopt de engine vóór de volgende aanroep. Zet ook een maandlimiet op de sleutel zelf in de Anthropic Console.</p>
       <div class="grid" id="spend"></div>
-      <div class="grid" style="margin-top:14px">
+      <div class="grid" style="margin-top:16px">
         <label class="f">Per dag (€)<input type="number" min="0" step="0.5" data-budget="dayEUR"></label>
         <label class="f">Per maand (€)<input type="number" min="0" step="1" data-budget="monthEUR"></label>
         <label class="f">Per product (€)<input type="number" min="0" step="0.1" data-budget="productEUR"></label>
       </div>
-    </section>
-
-    <section class="card">
+    </div>
+    <div class="card">
       <h2>Kwaliteitsniveaus</h2>
       <p class="mute small">De tool vraagt om een niveau; hier kies je het model erachter. Kosten per product zijn een schatting tot er drie echte runs zijn.</p>
       <div class="scroll"><table><thead><tr><th>Niveau</th><th>Model</th><th>≈ per product</th></tr></thead><tbody id="levels"></tbody></table></div>
-    </section>
+    </div>
+  </section>
 
-    <section class="card">
+  <!-- ───────── Koppeling ───────── -->
+  <section data-page="koppeling" class="hide">
+    <div class="card">
       <h2>Koppeling met de tool</h2>
       <p class="mute small">De tool stuurt een product met de instellingen van de shop en krijgt de teksten terug. Zie HANDOVER.md.</p>
-      <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:10px">
+      <div class="one">
         <div><div class="small mute">Engine-adres</div><div class="key"><code id="baseUrl"></code><button data-copy="baseUrl">Kopieer</button></div></div>
         <div><div class="small mute">Testsleutel: altijd testteksten, gratis. Om mee te bouwen.</div><div class="key"><code id="testKey"></code><button data-copy="testKey">Kopieer</button></div></div>
         <div><div class="small mute">Toolsleutel: echt, voor productie. Alleen op de server van de tool.</div><div class="key"><code id="toolKey"></code><button data-copy="toolKey">Kopieer</button></div></div>
         <div><div class="small mute">Geheim om meldingen (callbackUrl) te controleren</div><div class="key"><code id="cbSecret"></code><button data-copy="cbSecret">Kopieer</button></div></div>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <section class="card">
-      <h2>Proberen</h2>
-      <p class="mute small">Dezelfde aanroep die de tool doet. Vul een productpagina in; wat je leeg laat, leest de engine van de pagina.</p>
-      <div class="grid">
-        <label class="f" style="grid-column:1/-1">Productpagina (url)<input id="pUrl" placeholder="https://shop.nl/products/…"></label>
-        <label class="f">Naam<input id="pName"></label>
-        <label class="f">Merk<input id="pBrand"></label>
-        <label class="f">Webshop<input id="sName" placeholder="Naam van de shop"></label>
-        <label class="f" style="grid-column:1/-1">Beschrijving<textarea id="pDesc"></textarea></label>
-        <label class="f">Toon<select id="sTone"></select></label>
-        <label class="f">Aanspreekvorm<select id="sForm"></select></label>
-        <label class="f">Kwaliteit<select id="sQuality"></select></label>
-        <label class="f">Lengte<select id="sLength"></select></label>
-        <label class="f" style="grid-column:1/-1">Stijlwens<input id="sStyle" placeholder="Bijv. kort en zakelijk"></label>
-      </div>
-      <div class="checks" id="sLangs"></div>
-      <div class="checks"><label><input type="checkbox" id="useTest" checked> Gratis testteksten (met de testsleutel)</label></div>
-      <div class="row" style="margin-top:14px"><button class="primary" id="writeBtn">Schrijf de teksten</button><span id="costLine" class="small mute"></span></div>
-      <p id="tryMsg" class="note hide"></p>
-      <div id="progress" class="progress"></div>
-      <div id="result" class="hide" style="margin-top:14px">
-        <div class="row" style="justify-content:space-between">
-          <div class="seg" id="langSeg"></div>
-          <div class="row"><span id="resMeta" class="small mute"></span><button id="jsonBtn">JSON</button></div>
-        </div>
-        <div id="quality"></div>
-        <pre id="json" class="hide"></pre>
-        <div id="pieces"></div>
-        <h2 style="margin-top:16px">Bronnen</h2>
-        <div id="sources" class="small"></div>
-      </div>
-    </section>
-
-    <section class="card">
+  <!-- ───────── Taken ───────── -->
+  <section data-page="taken" class="hide">
+    <div class="card">
       <h2>Laatste taken</h2>
+      <p class="mute small">Alles wat de tool en deze pagina de afgelopen dagen lieten schrijven.</p>
       <div class="scroll"><table><thead><tr><th>Wanneer</th><th>Soort</th><th>Product</th><th>Status</th><th>Kosten</th></tr></thead><tbody id="recent"></tbody></table></div>
-    </section>
-  </div>
+    </div>
+  </section>
 </main>
 
+<div class="savebar hide" id="saveBar"><div class="in">
+  <span id="saveMsg" class="small mute">Niet opgeslagen wijzigingen</span>
+  <button id="undoBtn">Ongedaan maken</button>
+  <button class="primary" id="saveBtn">Opslaan</button>
+</div></div>
+
 <script>
-const $ = s => document.querySelector(s);
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const euro = n => '€' + Number(n || 0).toFixed(2).replace('.', ',');
 const base = location.origin + location.pathname.replace(/\/admin\/?$/, '');
-let key = null, st = null, opts = null, current = null, lang = null;
+const NAMES = { warm: 'Warm', neutral: 'Neutraal', expert: 'Deskundig', playful: 'Speels', informal: 'je / jouw', formal: 'u / uw', standard: 'Standaard', short: 'Kort',
+  basis: 'Basis', plus: 'Plus', premium: 'Premium', low: 'Laag', medium: 'Gemiddeld', high: 'Hoog', xhigh: 'Zeer hoog' };
+let key = null, st = null, opts = null, current = null, lang = null, draft = null;
 try { key = sessionStorage.getItem('ce-admin') } catch { }
 
 async function api(method, path, body, k = key) {
   const r = await fetch(base + path, { method, headers: { authorization: 'Bearer ' + k, ...(body && { 'content-type': 'application/json' }) }, body: body && JSON.stringify(body) });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw Object.assign(new Error(data.error || 'HTTP ' + r.status), { status: r.status, code: data.code });
+  if (!r.ok) throw Object.assign(new Error(data.error || 'HTTP ' + r.status), { status: r.status, code: data.code, field: data.field });
   return data;
 }
 const say = (el, msg, kind = '') => { el.className = 'note ' + kind; el.textContent = msg; el.classList.toggle('hide', !msg) };
 
+/* ── start, login, tabs ── */
 async function start() {
   if (!key) { try { key = (await (await fetch(base + '/v1/dev/login')).json()).adminKey || null } catch { } }
   if (!key) return showLogin();
   try { st = await api('GET', '/v1/admin/status'); opts = await api('GET', '/v1/options') }
   catch (e) { if (e.status === 401 || e.status === 403) { key = null; return showLogin(e.message) } throw e }
   try { sessionStorage.setItem('ce-admin', key) } catch { }
-  $('#login').classList.add('hide'); $('#app').classList.remove('hide');
-  fillForm(); render();
+  $('#login').classList.add('hide'); $('#tabs').classList.remove('hide');
+  fillForm(); render(); showTab();
 }
-function showLogin(err) { $('#login').classList.remove('hide'); $('#app').classList.add('hide'); say($('#loginErr'), err || '', 'bad') }
+function showLogin(err) { $('#login').classList.remove('hide'); $('#tabs').classList.add('hide'); $$('[data-page]').forEach(p => p.classList.add('hide')); say($('#loginErr'), err || '', 'bad') }
 $('#loginBtn').onclick = () => { key = $('#adminKey').value.trim(); start() };
+function showTab() {
+  const tab = (location.hash.slice(1).split('/')[0]) || 'proberen';
+  const known = $$('[data-page]').some(p => p.dataset.page === tab) ? tab : 'proberen';
+  $$('[data-page]').forEach(p => p.classList.toggle('hide', p.dataset.page !== known));
+  $$('#tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === known));
+  $('#saveBar').classList.toggle('hide', !(known === 'instructies' && dirty()));
+}
+addEventListener('hashchange', () => { if (st && !location.hash.startsWith('#g-') && !location.hash.startsWith('#src-')) showTab() });
 
+/* ── status: costs, keys, jobs ── */
 function render() {
   const live = st.mode === 'live';
-  $('#modePill').className = 'pill ' + st.mode; $('#modePill').textContent = live ? 'Live' : 'Test';
-  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === st.mode));
+  $('#modePill').className = 'pill ' + st.mode; $('#modePill').textContent = live ? 'Live' : 'Testmodus';
+  $$('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === st.mode));
   $('#keyHint').textContent = st.keyHint ? `(${st.keyHint})` : st.fromEnv ? '(uit ANTHROPIC_API_KEY)' : '(nog geen)';
   const b = st.budget;
-  const meter = (label, spent, max) => `<div><div class="small mute">${label}</div><b>${euro(spent)}</b> <span class="mute small">van ${euro(max)}</span><div class="meter ${spent >= max ? 'full' : ''}"><i style="width:${Math.min(100, max ? spent / max * 100 : 100)}%"></i></div></div>`;
-  $('#spend').innerHTML = meter('Vandaag', b.todayEUR, b.dayEUR) + meter('Deze maand', b.monthSpentEUR, b.monthEUR) + `<div><div class="small mute">Totaal ooit</div><b>${euro(st.totalEUR)}</b></div>`;
-  document.querySelectorAll('[data-budget]').forEach(i => { if (document.activeElement !== i) i.value = b[i.dataset.budget] });
+  const meter = (label, spent, max) => `<div class="stat"><div class="small mute">${label}</div><b>${euro(spent)}</b> <span class="mute small">van ${euro(max)}</span><div class="meter ${spent >= max ? 'full' : ''}"><i style="width:${Math.min(100, max ? spent / max * 100 : 100)}%"></i></div></div>`;
+  $('#spend').innerHTML = meter('Vandaag', b.todayEUR, b.dayEUR) + meter('Deze maand', b.monthSpentEUR, b.monthEUR) + `<div class="stat"><div class="small mute">Totaal ooit</div><b>${euro(st.totalEUR)}</b></div>`;
+  $$('[data-budget]').forEach(i => { if (document.activeElement !== i) i.value = b[i.dataset.budget] });
   $('#levels').innerHTML = st.levels.map(l => `<tr><td><b>${esc(l.name)}</b><div class="small mute">${esc(l.blurb)}</div></td>
     <td><select data-level="${l.id}">${st.models.map(m => `<option value="${m.id}" ${m.id === l.model ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></td>
     <td>${euro(l.perProductEUR)}<div class="small mute">${l.basedOn ? `gemiddelde van ${l.basedOn} runs` : 'schatting'}</div></td></tr>`).join('');
   $('#baseUrl').textContent = base; $('#testKey').textContent = st.keys.test || '—'; $('#toolKey').textContent = st.keys.tool || '—'; $('#cbSecret').textContent = st.keys.callbackSecret;
+  const statusName = { done: 'klaar', failed: 'mislukt', working: 'bezig', queued: 'wacht', cancelled: 'geannuleerd' };
   $('#recent').innerHTML = st.recent.length ? st.recent.map(j => `<tr><td class="small">${new Date(j.createdAt).toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'short' })}</td>
-    <td>${j.kind === 'revise' ? 'wijziging' : 'schrijven'}${j.test ? ' <span class="pill">test</span>' : ''}</td><td>${esc(j.product || j.reference || '')}</td>
-    <td class="${j.status === 'failed' ? 'issue error' : ''}">${esc({ done: 'klaar', failed: 'mislukt', working: 'bezig', queued: 'wacht', cancelled: 'geannuleerd' }[j.status] || j.status)}${j.error ? `<div class="small">${esc(j.error)}</div>` : ''}</td>
+    <td>${j.kind === 'revise' ? 'wijziging' : 'schrijven'} ${j.test ? '<span class="pill test">test</span>' : '<span class="pill live">live</span>'}</td><td>${esc(j.product || j.reference || '')}</td>
+    <td>${j.status === 'failed' ? '<span class="pill bad">mislukt</span>' : esc(statusName[j.status] || j.status)}${j.error ? `<div class="small mute">${esc(j.error)}</div>` : ''}</td>
     <td>${j.costEUR == null ? '' : euro(j.costEUR)}</td></tr>`).join('') : '<tr><td colspan="5" class="mute">Nog niets</td></tr>';
+  if (!draft) renderInstructions();
   costLine();
 }
+const refresh = async () => { st = await api('GET', '/v1/admin/status'); render() };
 
-document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = async () => {
+$$('#modeSeg button').forEach(b => b.onclick = async () => {
   if (b.dataset.mode === 'live' && !confirm('Live zetten? Dan schrijft Claude echte teksten en kost elk product geld, binnen de grenzen.')) return;
   try { st = await api('PUT', '/v1/admin/ai', { mode: b.dataset.mode }); say($('#aiMsg'), ''); render() } catch (e) { say($('#aiMsg'), e.message, 'bad') }
 });
@@ -224,18 +367,18 @@ $('#stopBtn').onclick = async () => {
   if (!confirm('Noodstop: alles terug naar testmodus en wachtende taken annuleren?')) return;
   const r = await api('POST', '/v1/admin/stop');
   say($('#aiMsg'), `Gestopt. ${r.cancelled} wachtende taken geannuleerd${r.stillRunning ? `, ${r.stillRunning} lopende stoppen bij hun volgende stap` : ''}.`);
-  st = await api('GET', '/v1/admin/status'); render();
+  refresh();
 };
 $('#keyBtn').onclick = async () => {
   const k = $('#anthropicKey').value.trim();
   if (!k) return;
   say($('#aiMsg'), 'Sleutel controleren…');
-  try { st = await api('PUT', '/v1/admin/ai', { key: k }); $('#anthropicKey').value = ''; say($('#aiMsg'), 'Sleutel opgeslagen en werkt.'); render() } catch (e) { say($('#aiMsg'), e.message, 'bad') }
+  try { st = await api('PUT', '/v1/admin/ai', { key: k }); $('#anthropicKey').value = ''; say($('#aiMsg'), 'Sleutel opgeslagen en werkt.', 'ok'); render() } catch (e) { say($('#aiMsg'), e.message, 'bad') }
 };
 document.addEventListener('change', async e => {
   const t = e.target;
   if (t.dataset.budget) { try { st = await api('PATCH', '/v1/admin/settings', { budget: { [t.dataset.budget]: Number(t.value) } }); render() } catch (err) { alert(err.message) } }
-  if (t.dataset.level) { st = await api('PATCH', '/v1/admin/settings', { levels: { [t.dataset.level]: { model: t.value } } }); render() }
+  if (t.dataset.level) { st = await api('PATCH', '/v1/admin/settings', { levels: { [t.dataset.level]: { model: t.value } } }); opts = await api('GET', '/v1/options'); render() }
   if (['sQuality', 'useTest'].includes(t.id) || t.closest('#sLangs')) costLine();
 });
 document.addEventListener('click', e => {
@@ -243,83 +386,180 @@ document.addEventListener('click', e => {
   if (c) { navigator.clipboard.writeText($('#' + c.dataset.copy).textContent); c.textContent = 'Gekopieerd'; setTimeout(() => c.textContent = 'Kopieer', 1200) }
 });
 
+/* ── instructions ── */
+const GROUPS = { research: ['factsMin', 'factsMax', 'questionIdeas', 'maxSearches', 'maxFetches', 'blockedDomains'], writing: ['specialCount', 'careCount', 'headlineWords', 'effort', 'extra'], rules: ['rules'] };
+const DEFAULT_KEYS = ['quality', 'tone', 'formality', 'length', 'tipCount', 'answerCount', 'expectCount', 'emailItems', 'languages'];
+const dirty = () => !!draft && JSON.stringify(draft) !== JSON.stringify({ instructions: st.instructions, defaults: st.defaults });
+function field(k, f, v, scope) {
+  const attr = `data-${scope}="${k}"`, help = f.help ? `<span class="help">${esc(f.help)}</span>` : '';
+  if (f.type === 'int') return `<label class="f">${esc(f.label)}<input type="number" ${attr} min="${f.min}" max="${f.max}" step="1" value="${v}">${help}</label>`;
+  if (f.type === 'enum') return `<label class="f">${esc(f.label)}<select ${attr}>${f.options.map(o => `<option value="${o}" ${o === v ? 'selected' : ''}>${esc(NAMES[o] || o)}</option>`).join('')}</select>${help}</label>`;
+  if (f.type === 'text') return `<label class="f">${esc(f.label)}<textarea ${attr} maxlength="${f.max}">${esc(v)}</textarea>${help}</label>`;
+  if (f.type === 'textlist') return `<label class="f">${esc(f.label)}<textarea ${attr} rows="${Math.min(14, Math.max(4, v.length + 1))}">${esc(v.join('\n'))}</textarea>${help}</label>`;
+  return '';
+}
+function renderInstructions() {
+  const d = draft || { instructions: st.instructions, defaults: st.defaults }, F = st.instructionFields;
+  const short = ks => ks.filter(k => F[k].type === 'int' || F[k].type === 'enum').map(k => field(k, F[k], d.instructions[k], 'instr')).join('');
+  const long = ks => ks.filter(k => F[k].type === 'text' || F[k].type === 'textlist').map(k => field(k, F[k], d.instructions[k], 'instr')).join('');
+  $('#iResearch').innerHTML = short(GROUPS.research); $('#iResearchLong').innerHTML = long(GROUPS.research);
+  $('#iWriting').innerHTML = short(GROUPS.writing); $('#iWritingLong').innerHTML = long(GROUPS.writing);
+  $('#iRules').innerHTML = long(GROUPS.rules);
+  const S = st.settingFields;
+  $('#iDefaults').innerHTML = DEFAULT_KEYS.filter(k => k !== 'languages').map(k => field(k, S[k], d.defaults[k], 'def')).join('');
+  $('#iDefaultLangs').innerHTML = '<span class="small mute">Talen:</span>' + S.languages.options.map(l => `<label><input type="checkbox" data-deflang="${l}" ${d.defaults.languages.includes(l) ? 'checked' : ''}> ${esc(opts.languages[l])}</label>`).join('');
+}
+function readInstructions() {
+  draft = draft || structuredClone({ instructions: st.instructions, defaults: st.defaults });
+  for (const el of $$('[data-instr]')) {
+    const k = el.dataset.instr, f = st.instructionFields[k];
+    draft.instructions[k] = f.type === 'int' ? Number(el.value) : f.type === 'textlist' ? el.value.split('\n').map(x => x.trim()).filter(Boolean) : el.value;
+  }
+  for (const el of $$('[data-def]')) { const k = el.dataset.def; draft.defaults[k] = st.settingFields[k].type === 'int' ? Number(el.value) : el.value }
+  draft.defaults.languages = $$('[data-deflang]:checked').map(i => i.dataset.deflang);
+  showTab();
+}
+$('[data-page="instructies"]').addEventListener('input', readInstructions);
+$('[data-page="instructies"]').addEventListener('change', readInstructions);
+$$('[data-reset]').forEach(b => b.onclick = () => {
+  draft = draft || structuredClone({ instructions: st.instructions, defaults: st.defaults });
+  const g = b.dataset.reset;
+  if (g === 'defaults') for (const k of DEFAULT_KEYS) draft.defaults[k] = structuredClone(st.settingFields[k].default);
+  else for (const k of GROUPS[g]) draft.instructions[k] = structuredClone(st.instructionFields[k].default);
+  renderInstructions(); showTab();
+});
+$('#undoBtn').onclick = () => { draft = null; renderInstructions(); showTab() };
+$('#saveBtn').onclick = async () => {
+  $('#saveBtn').disabled = true;
+  try {
+    st = await api('PATCH', '/v1/admin/settings', draft);
+    opts = await api('GET', '/v1/options');
+    draft = null; render(); fillForm(); showTab();
+    $('#saveBar').classList.remove('hide'); $('#saveMsg').textContent = 'Opgeslagen. Geldt voor alles wat hierna geschreven wordt.';
+    setTimeout(showTab, 2500);
+  } catch (e) { $('#saveMsg').textContent = e.message + (e.field ? ` (${e.field})` : '') }
+  finally { $('#saveBtn').disabled = false }
+};
+addEventListener('beforeunload', e => { if (dirty()) e.preventDefault() });
+
 /* ── trying it ── */
 function fillForm() {
-  const s = opts.settings, sel = (id, f, labels = {}) => { $(id).innerHTML = f.options.map(o => `<option value="${o}" ${o === f.default ? 'selected' : ''}>${labels[o] || o}</option>`).join('') };
-  sel('#sTone', s.tone, { warm: 'Warm', neutral: 'Neutraal', expert: 'Deskundig', playful: 'Speels' });
-  sel('#sForm', s.formality, { informal: 'je / jouw', formal: 'u / uw' });
-  sel('#sLength', s.length, { standard: 'Standaard', short: 'Kort' });
-  $('#sQuality').innerHTML = opts.qualities.map(q => `<option value="${q.id}">${esc(q.name)}</option>`).join('');
+  const s = opts.settings, sel = (id, f) => { $(id).innerHTML = f.options.map(o => `<option value="${o}" ${o === f.default ? 'selected' : ''}>${esc(NAMES[o] || o)}</option>`).join('') };
+  sel('#sTone', s.tone); sel('#sForm', s.formality); sel('#sLength', s.length);
+  $('#sQuality').innerHTML = opts.qualities.map(q => `<option value="${q.id}" ${q.id === s.quality.default ? 'selected' : ''}>${esc(q.name)}</option>`).join('');
   $('#sLangs').innerHTML = s.languages.options.map(l => `<label><input type="checkbox" value="${l}" ${s.languages.default.includes(l) ? 'checked' : ''}> ${esc(opts.languages[l])}</label>`).join('');
 }
-const langsPicked = () => [...document.querySelectorAll('#sLangs input:checked')].map(i => i.value);
+const langsPicked = () => $$('#sLangs input:checked').map(i => i.value);
 function costLine() {
   if (!opts) return;
   const free = $('#useTest').checked || st.mode !== 'live';
   const q = opts.qualities.find(x => x.id === $('#sQuality').value);
-  $('#costLine').textContent = free ? 'Gratis: testteksten' : `≈ ${euro(q.estimatedCostEUR * Math.max(1, langsPicked().length / 2))} bij Anthropic · nog ${euro(st.budget.dayLeftEUR)} budget vandaag`;
+  $('#costLine').textContent = free ? (st.mode !== 'live' && !$('#useTest').checked ? 'Gratis: de engine staat in testmodus' : 'Gratis: testteksten')
+    : `≈ ${euro(q.estimatedCostEUR * Math.max(1, langsPicked().length / 2))} bij Anthropic · nog ${euro(st.budget.dayLeftEUR)} budget vandaag`;
 }
 const callKey = () => $('#useTest').checked ? st.keys.test : key;
 
 async function follow(job) {
-  while (['queued', 'working'].includes(job.status)) {
-    $('#progress').textContent = job.progress?.at(-1)?.msg || 'Bezig…';
-    await new Promise(r => setTimeout(r, 1000));
-    job = await api('GET', '/v1/content/' + job.id, null, callKey());
-  }
-  $('#progress').textContent = '';
+  $('#progressBox').classList.remove('hide'); $('#emptyBox').classList.add('hide');
+  try {
+    while (['queued', 'working'].includes(job.status)) {
+      $('#progress').textContent = job.progress?.at(-1)?.msg || (job.status === 'queued' ? 'Wacht op zijn beurt…' : 'Bezig…');
+      await new Promise(r => setTimeout(r, 1000));
+      job = await api('GET', '/v1/content/' + job.id, null, callKey());
+    }
+  } finally { $('#progressBox').classList.add('hide'); if (!current) $('#emptyBox').classList.remove('hide') }
   if (job.status !== 'done') throw new Error(job.error || job.status);
   return job;
 }
 
 $('#writeBtn').onclick = async () => {
   const product = Object.fromEntries(Object.entries({ url: $('#pUrl').value.trim(), name: $('#pName').value.trim(), brand: $('#pBrand').value.trim(), description: $('#pDesc').value.trim() }).filter(([, v]) => v));
+  if (!product.url) return say($('#tryMsg'), 'Vul de productpagina (url) in.', 'bad');
   const settings = { languages: langsPicked(), tone: $('#sTone').value, formality: $('#sForm').value, quality: $('#sQuality').value, length: $('#sLength').value, ...($('#sStyle').value.trim() && { style: $('#sStyle').value.trim() }) };
   if (!$('#useTest').checked && st.mode === 'live' && !confirm($('#costLine').textContent + '\n\nDoorgaan?')) return;
   say($('#tryMsg'), ''); $('#writeBtn').disabled = true;
   try {
     const job = await follow(await api('POST', '/v1/content', { product, shop: { name: $('#sName').value.trim() || null }, settings, reference: 'beheerpagina' }, callKey()));
     current = job.result; lang = current.languages[0]; showResult();
+    if (innerWidth < 980) $('#result').scrollIntoView({ behavior: 'smooth' });
   } catch (e) { say($('#tryMsg'), e.message, 'bad') }
-  finally { $('#writeBtn').disabled = false; st = await api('GET', '/v1/admin/status'); render() }
+  finally { $('#writeBtn').disabled = false; refresh() }
 };
 
+/* the result, grouped by where it ends up in the guide */
 const t = v => v && typeof v === 'object' && !Array.isArray(v) ? v[lang] ?? '' : v ?? '';
-const cite = src => src?.length ? ` <span class="src">${src.map(esc).join(',')}</span>` : '';
-const LABELS = Object.fromEntries([['shortName', 'Korte naam'], ['intro', 'Intro'], ['story', 'Merkverhaal'], ['special', 'Bijzonder'], ['expect', 'Wat is normaal'], ['fact', 'Feit'], ['care', 'Onderhoud'],
-  ['experience', 'Ervaringsvraag'], ['question', 'Vraag'], ['tips', 'Tips'], ['whileYouWait', 'Verzendmail'], ['firstMinutes', 'Bezorgmail']]);
-function pieceHTML(path, label, body) {
+const cite = src => (src || []).map(id => `<a class="src ${id.startsWith('w') ? 'shop' : ''}" href="#src-${esc(id)}" title="${esc(current.sources.find(s => s.id === id)?.claim || '')}">${esc(id)}</a>`).join('');
+function piece(path, label, body, cls = '') {
   const issues = current.quality.issues.filter(i => i.piece === path);
-  return `<div class="piece" data-piece="${path}"><div class="head"><div><b>${esc(label)}</b> <span class="path">${path}</span></div><button class="edit">Wijzig</button></div>
-    ${body}${issues.map(i => `<div class="issue ${i.level}">${esc(i.message)}</div>`).join('')}</div>`;
+  return `<div class="piece ${cls} ${issues.some(i => i.level === 'error') ? 'flag' : ''}" data-piece="${path}">
+    <div class="ph"><span class="lbl">${esc(label)}</span><button class="edit">Wijzig</button></div>
+    ${body}${issues.map(i => `<div class="issue ${i.level}">${i.level === 'error' ? '✕' : '!'} ${esc(i.message)}</div>`).join('')}</div>`;
 }
-const tipHTML = x => `<b>${esc(t(x.title || x.lead))}</b> ${esc(t(x.text))}${cite(x.src)}`;
+const tipBody = x => `<div class="t">${esc(t(x.title ?? x.lead))}${cite(x.src)}</div><div>${esc(t(x.text))}</div>`;
+function group(id, title, sub, inner, count) {
+  return { id, title, count, html: `<section class="card group" id="g-${id}"><div class="gh"><div><h2>${title}</h2><p>${sub}</p></div></div>${inner}</section>` };
+}
 function showResult() {
-  const c = current.content;
-  $('#result').classList.remove('hide');
+  const c = current.content, q = current.quality;
+  $('#result').classList.remove('hide'); $('#emptyBox').classList.add('hide');
+  $('#resTitle').textContent = current.product.name || current.product.url;
+  const used = current.sources.filter(s => s.used).length;
+  $('#resMeta').innerHTML = [current.test ? '<span class="pill test">testteksten</span>' : `<span class="pill live">${euro(current.costEUR)}</span>`,
+    esc(NAMES[current.settings.quality] || current.settings.quality), esc(NAMES[current.settings.tone]), esc(NAMES[current.settings.formality]), `${used} bronnen gebruikt`,
+    current.revised ? `gewijzigd: ${esc(current.revised.piece)}` : ''].filter(Boolean).join(' · ');
   $('#langSeg').innerHTML = current.languages.map(l => `<button data-lang="${l}" class="${l === lang ? 'on' : ''}">${l.toUpperCase()}</button>`).join('');
-  $('#resMeta').textContent = `${current.test ? 'testteksten' : euro(current.costEUR)} · ${current.sources.filter(s => s.used).length} bronnen gebruikt`;
-  const q = current.quality;
-  $('#quality').innerHTML = `<div class="note ${q.errors ? 'bad' : q.warnings ? 'warn' : ''}">${q.errors ? `${q.errors} regel(s) overtreden` : 'Voldoet aan de AmplifAI-regels'}${q.warnings ? ` · ${q.warnings} opmerking(en)` : ''}</div>`;
+  $('#qualityBox').innerHTML = `<div class="note ${q.errors ? 'bad' : q.warnings ? 'warn' : 'ok'}">${q.errors ? `<b>${q.errors} regel${q.errors > 1 ? 's' : ''} overtreden</b>` : '<b>Voldoet aan de AmplifAI-regels</b>'}${q.warnings ? ` · ${q.warnings} opmerking${q.warnings > 1 ? 'en' : ''}` : ''}${q.issues.length ? ': ' + q.issues.map(i => `<a href="#" data-goto="${esc(i.piece)}">${esc(i.piece)}</a>`).join(', ') : ''}</div>`;
   $('#json').textContent = JSON.stringify(current, null, 2);
-  const P = [];
-  P.push(pieceHTML('intro', 'Intro', `<div><b>${esc(t(c.intro.title))}</b></div><div>${esc(t(c.intro.headline))}</div><div class="small mute">Uitnodiging: ${esc(t(c.intro.teaser.headline))} · ${esc(t(c.intro.teaser.line))}</div>`));
-  P.push(pieceHTML('story', 'Merkverhaal', `<div>${esc(t(c.story.text))}${cite(c.story.src)}</div>`));
-  c.special.forEach((x, i) => P.push(pieceHTML(`special.${i}`, 'Bijzonder', `<div>${tipHTML(x)}</div>`)));
-  c.expect.forEach((x, i) => P.push(pieceHTML(`expect.${i}`, 'Wat is normaal', `<div>${tipHTML(x)}</div>`)));
-  P.push(pieceHTML('fact', 'Feit', `<div>${esc(t(c.fact.text))}${cite(c.fact.src)}</div>`));
-  c.care.forEach((x, i) => P.push(pieceHTML(`care.${i}`, 'Onderhoud', `<div>${tipHTML(x)}</div>`)));
-  P.push(pieceHTML('experience', 'Ervaringsvraag', `<div><b>${esc(t(c.experience.question))}</b></div><div class="small mute">${['new', 'regular', 'expert'].map(k => esc(t(c.experience[k]))).join(' · ')}</div>`));
-  P.push(pieceHTML('question', 'Vraag', `<div class="small mute">${esc(t(c.question.eyebrow))}</div><div><b>${esc(t(c.question.title))}</b> ${esc(t(c.question.sub))}</div>`));
-  c.question.options.forEach((o, i) => P.push(pieceHTML(`question.options.${i}`, 'Antwoord: ' + t(o.label), `<div>${esc(t(o.result.headline))}. ${o.result.lines.map(l => esc(t(l))).join(' ')}${cite(o.src)}</div><div class="small">Tip: <b>${esc(t(o.tip.title))}</b> ${esc(t(o.tip.text))} <span class="mute">(${esc(t(o.tip.why))})</span></div>`)));
-  for (const [lv, name] of [['new', 'Tip · nieuw'], ['regular', 'Tip · ervaren'], ['expert', 'Tip · expert']]) c.tips[lv].forEach((x, i) => P.push(pieceHTML(`tips.${lv}.${i}`, name, `<div>${tipHTML(x)}</div>`)));
-  for (const k of ['whileYouWait', 'firstMinutes']) P.push(pieceHTML(k, LABELS[k] + ': ' + t(c[k].title), `<ul>${c[k].items.map(x => `<li>${tipHTML(x)}</li>`).join('')}</ul>`));
-  $('#pieces').innerHTML = P.join('');
-  $('#sources').innerHTML = current.sources.map(s => `<div style="margin:4px 0"><span class="src">${esc(s.id)}</span> ${esc(s.claim)} ${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a>` : ''}${s.used ? '' : ' <span class="mute">(niet gebruikt)</span>'}</div>`).join('');
+
+  const G = [];
+  G.push(group('welkom', 'Bedankpagina', 'Het eerste wat de klant ziet, direct na betalen.', `<div class="pieces">
+    ${piece('intro', 'Titel en kopregel', `<div class="big">${esc(t(c.intro.title))}</div><div>${esc(t(c.intro.headline))}</div>`)}
+    ${piece('intro', 'Uitnodiging om de gids te openen', `<div class="t">${esc(t(c.intro.teaser.headline))}</div><div class="mute">${esc(t(c.intro.teaser.line))}</div>`)}
+    ${piece('story', 'Het merkverhaal', `<div>${esc(t(c.story.text))}${cite(c.story.src)}</div>`)}
+    ${piece('fact', 'Wist je dat', `<div>${esc(t(c.fact.text))}${cite(c.fact.src)}</div>`)}
+  </div>`, 4));
+  G.push(group('product', 'Over het product', 'Wat het bijzonder maakt, en hoe het lang mooi blijft.', `
+    <h3 style="margin-bottom:8px">Bijzonder</h3><div class="pieces two">${c.special.map((x, i) => piece(`special.${i}`, `Bijzonder ${i + 1}`, tipBody(x))).join('')}</div>
+    <h3 style="margin:16px 0 8px">Onderhoud</h3><div class="pieces two">${c.care.map((x, i) => piece(`care.${i}`, `Onderhoud ${i + 1}`, tipBody(x))).join('')}</div>`, c.special.length + c.care.length));
+  G.push(group('eerste', 'De eerste dagen', 'Wat normaal is, voordat de klant het zich afvraagt.', `<div class="pieces two">${c.expect.map((x, i) => piece(`expect.${i}`, `Wat is normaal ${i + 1}`, tipBody(x))).join('')}</div>`, c.expect.length));
+  G.push(group('vragen', 'Vragen en tips', 'Eerst geven, dan vragen: elk antwoord verandert wat de klant daarna ziet.', `
+    <div class="pieces">
+      ${piece('experience', 'Ervaringsvraag', `<div class="t">${esc(t(c.experience.question))}</div><div class="row small" style="margin-top:4px">${['new', 'regular', 'expert'].map(k => `<span class="pill">${esc(t(c.experience[k]))}</span>`).join('')}</div>`)}
+      ${piece('question', 'De vraag', `<div class="small mute">${esc(t(c.question.eyebrow))}</div><div class="t">${esc(t(c.question.title))}</div><div class="mute">${esc(t(c.question.sub))}</div>`)}
+    </div>
+    <h3 style="margin:16px 0 8px">Antwoorden</h3>
+    <div class="pieces two">${c.question.options.map((o, i) => piece(`question.options.${i}`, `Antwoord ${i + 1}`, `
+      <div class="t">${esc(t(o.label))} <span class="${o.ok ? 'badge-ok' : 'badge-check'} small">${o.ok ? '✓' : 'even checken'}</span></div>
+      ${t(o.note) ? `<div class="small mute">${esc(t(o.note))}</div>` : ''}
+      <div class="opt"><div class="small mute">Resultaat</div><div><b>${esc(t(o.result.headline))}</b> ${o.result.lines.map(l => esc(t(l))).join(' ')}${cite(o.src)}</div></div>
+      <div class="opt"><div class="small mute">Tip die erbij hoort</div><div><b>${esc(t(o.tip.title))}</b> ${esc(t(o.tip.text))}</div><div class="small mute">${esc(t(o.tip.why))}</div></div>`)).join('')}</div>
+    <h3 style="margin:16px 0 8px">Tips per ervaringsniveau</h3>
+    <div class="levels">${[['new', 'Nieuw'], ['regular', 'Ervaren'], ['expert', 'Expert']].map(([lv, name]) => `<div><h4>${name} <span class="mute small">· ${esc(t(c.experience[lv]))}</span></h4><div class="pieces">${c.tips[lv].map((x, i) => piece(`tips.${lv}.${i}`, `Tip ${i + 1}`, tipBody(x))).join('')}</div></div>`).join('')}</div>`,
+    2 + c.question.options.length + c.tips.new.length + c.tips.regular.length + c.tips.expert.length));
+  G.push(group('mails', 'E-mails', 'Voor de verzendmail en de bezorgmail.', `<div class="pieces two">
+    ${[['whileYouWait', 'Verzendmail'], ['firstMinutes', 'Bezorgmail']].map(([k, name]) => piece(k, name, `<div class="t">${esc(t(c[k].title))}</div><ul>${c[k].items.map(x => `<li><b>${esc(t(x.lead))}</b> ${esc(t(x.text))}${cite(x.src)}</li>`).join('')}</ul>`)).join('')}
+  </div>`, 2));
+  const dom = u => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return '' } };
+  G.push(group('bronnen', 'Bronnen', 'Elk feit heeft een bron. Grijs: gevonden, maar niet gebruikt in de tekst.', `<div class="sources"><ol>${current.sources.map(s => `
+    <li id="src-${esc(s.id)}" class="${s.used ? '' : 'unused'}"><span><span class="src ${s.id.startsWith('w') ? 'shop' : ''}">${esc(s.id)}</span></span>
+    <div>${esc(s.claim)}<div class="dom">${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || dom(s.url))}</a> · ${esc(dom(s.url))}` : esc(s.title || '')}</div></div></li>`).join('')}</ol></div>`, current.sources.length));
+
+  $('#chips').innerHTML = G.map(g => `<a href="#g-${g.id}">${g.title}<span class="n">${g.count}</span></a>`).join('');
+  $('#readView').innerHTML = G.map(g => g.html).join('');
 }
 $('#langSeg').onclick = e => { const b = e.target.closest('[data-lang]'); if (b) { lang = b.dataset.lang; showResult() } };
-$('#jsonBtn').onclick = () => $('#json').classList.toggle('hide');
-$('#pieces').onclick = async e => {
+$('#viewSeg').onclick = e => {
+  const b = e.target.closest('[data-view]'); if (!b) return;
+  $$('#viewSeg button').forEach(x => x.classList.toggle('on', x === b));
+  $('#readView').classList.toggle('hide', b.dataset.view !== 'read'); $('#jsonView').classList.toggle('hide', b.dataset.view !== 'json');
+};
+$('#qualityBox').onclick = e => {
+  const a = e.target.closest('[data-goto]'); if (!a) return;
+  e.preventDefault();
+  const el = $(`.piece[data-piece="${CSS.escape(a.dataset.goto)}"]`) || $(`.piece[data-piece^="${CSS.escape(a.dataset.goto)}."]`);
+  el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+$('#readView').onclick = async e => {
   const p = e.target.closest('.piece');
   if (!p) return;
   if (e.target.classList.contains('edit')) {
@@ -327,15 +567,18 @@ $('#pieces').onclick = async e => {
     p.insertAdjacentHTML('beforeend', `<div class="wish"><input placeholder="Wat moet er anders? Bijv. korter, of noem dat hij waterdicht is"><button class="primary">Herschrijf</button></div>`);
     return p.querySelector('.wish input').focus();
   }
-  if (e.target.matches('.wish button')) {
+  if (e.target.matches('.wish button') || (e.type === 'keydown')) {
     const wish = p.querySelector('.wish input').value.trim();
     e.target.disabled = true;
     try {
       const job = await follow(await api('POST', '/v1/content/revise', { content: current, piece: p.dataset.piece, wish }, callKey()));
       current = job.result; showResult();
+      $(`.piece[data-piece="${CSS.escape(job.result.revised.piece)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } catch (err) { say($('#tryMsg'), err.message, 'bad'); e.target.disabled = false }
+    finally { refresh() }
   }
 };
+$('#readView').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.wish input')) e.target.nextElementSibling.click() });
 start().catch(e => showLogin(e.message));
 </script>
 </body>

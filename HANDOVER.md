@@ -38,6 +38,7 @@ npm run test-mode   # starts on http://localhost:4317
 - **Admin page:** http://localhost:4317/admin opens by itself on your own computer. It is AmplifAI's own screen:
   - test or live, the Anthropic key, spending limits and the emergency stop
   - which Claude model is behind each quality level
+  - the general instructions (*Instructies*): how many facts to collect, how many points per piece, the fixed rules, an extra instruction, and the defaults for shops
   - the keys for the tool
   - a **Proberen** box that makes the same call the tool makes, and shows the result with a **Wijzig** (change) button on every piece
 - **Your key:** the admin page shows both keys under *Koppeling met de tool*. They are also in `data/tool-test-key.txt` and `data/tool-key.txt`.
@@ -62,7 +63,7 @@ This returns:
 - `pieces`: the pieces of content, and the path you use to ask for a change to one
 - `languages` and `icons`
 
-Build the tool's settings screen from this, so the engine and the tool can never disagree. Which toggles a shop may touch, and what it pays, is up to the tool. The tool never sees which Claude model is behind a level.
+Build the tool's settings screen from this, so the engine and the tool can never disagree. The defaults are the ones AmplifAI set on the admin page; how research and writing work for every product (number of facts, the fixed rules, an extra instruction) is AmplifAI's too, and the tool cannot send it. Which toggles a shop may touch, and what it pays, is up to the tool. The tool never sees which Claude model is behind a level.
 
 ### 1. Write the content for a product
 

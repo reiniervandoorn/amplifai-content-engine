@@ -39,12 +39,14 @@ const SPECIAL = [
   ['gauge', 'Gemaakt voor dagelijks gebruik', 'Made for everyday use', 'Testmodus: hier komt wat dit product bijzonder maakt, uit de bronnen.', 'Test mode: what makes this product special, from the sources, goes here.'],
   ['tool', 'Doordacht ontwerp', 'A thoughtful design', 'Testmodus: hier komt een tweede bijzonder punt, met bron.', 'Test mode: a second special point, with a source, goes here.'],
   ['shield', 'Gaat lang mee', 'Built to last', 'Testmodus: nog een bijzonder punt uit de bronnen.', 'Test mode: another special point from the sources.'],
+  ['tag', 'Herkenbaar ontwerp', 'A recognisable design', 'Testmodus: een vierde bijzonder punt, met bron.', 'Test mode: a fourth special point, with a source.'],
 ];
 const CARE = [
   ['drop', 'Schoonmaken met een zachte doek', 'Clean with a soft cloth', 'Een vochtige, zachte doek is meestal genoeg. Agressieve middelen zijn zelden nodig.', 'A damp, soft cloth is usually enough. Harsh cleaners are rarely needed.'],
   ['thermo', 'Droog en uit de zon bewaren', 'Store dry and out of the sun', 'Vocht en direct zonlicht verouderen de meeste materialen het snelst.', 'Moisture and direct sunlight age most materials fastest.'],
   ['shield', 'Lees het onderhoudslabel', 'Read the care label', 'Daar staat precies hoe {je} het lang mooi houdt.', 'It says exactly how to keep it in good shape.'],
   ['cal', 'Plan een vast onderhoudsmoment', 'Plan a regular maintenance moment', 'Eén keer per maand even nalopen voorkomt de meeste problemen.', 'Checking it once a month prevents most problems.'],
+  ['trash', 'Afscheid nemen', 'When it is time to replace it', 'Kijk bij de gemeente of het merk hoe {je} het goed laat recyclen.', 'Check with your council or the brand how to recycle it properly.'],
 ];
 const SHIPPED = [
   ['home', 'Kies een plek.', 'Pick a spot.', 'Bedenk waar {je} het gaat gebruiken of bewaren.', 'Think about where you will use or store it.'],
@@ -130,10 +132,10 @@ function build({ page, research: r, settings: s, seed = 0 }) {
       teaser: { headline: T(`Haal alles uit {jouw} ${short}`, `Get the most out of your ${short}`), line: T('Een paar dingen om te weten', 'A few things to know') },
     },
     story: { text: T(`${name}${brand && !name.startsWith(brand) ? ` van ${brand}` : ''}. Testmodus: hier komt het merkverhaal uit de bronnen.`, `${name}${brand && !name.startsWith(brand) ? ` by ${brand}` : ''}. Test mode: the brand story from the sources goes here.`), src: src('brand') },
-    special: pick(SPECIAL, 2, seed).map(x => tip(x, 'special')),
+    special: pick(SPECIAL, s.specialCount ?? 2, seed).map(x => tip(x, 'special')),
     expect: pick(EXPECT, s.expectCount, seed).map(x => point(x)),
     fact: { icon: 'tag', text: descFact ? T(`Uit de productbeschrijving: ${descFact.claim.replace(/^From the product description: /, '')}`, descFact.claim) : T(`${name} komt uit de collectie van ${brand || 'deze shop'}.`, `${name} is part of the ${brand || 'shop'} range.`), src: descFact ? [descFact.id] : src('brand') },
-    care: pick(CARE, 3, seed).map(x => tip(x, 'care')),
+    care: pick(CARE, s.careCount ?? 3, seed).map(x => tip(x, 'care')),
     experience: { question: T('Hoeveel ervaring heb {je} hiermee?', 'How much experience do you have with this?'), new: T('Nieuw voor mij', 'New to me'), regular: T('Ik ken het', 'I know it'), expert: T('Ik weet er veel van', 'I know a lot about it') },
     question: {
       eyebrow: T('Voor {jouw} tips', 'For your tips'), title: T('Hoe vaak ga {je} hem gebruiken?', 'How often will you use it?'), sub: T('Dan passen de tips erbij.', 'So the tips fit.'),

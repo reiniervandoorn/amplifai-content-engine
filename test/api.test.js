@@ -182,6 +182,26 @@ test('admin: quality levels pick a model; live needs a key', async () => {
   const st = await admin.request('PATCH', '/v1/admin/settings', { levels: { basis: { model: 'claude-haiku-5-5' } } });
   assert.equal(st.levels.find(l => l.id === 'basis').model, 'claude-haiku-5-5');
   assert.ok((await testTool.options()).qualities[0].estimatedCostEUR < 0.1);
+  // general instructions and the defaults for shops: checked, and used for what is written next
+  await rejects(admin.request('PATCH', '/v1/admin/settings', { instructions: { factsMin: 50, factsMax: 20 } }), 422, 'factsMin');
+  await rejects(admin.request('PATCH', '/v1/admin/settings', { instructions: { specialCount: 9 } }), 422, 'specialCount');
+  await rejects(admin.request('PATCH', '/v1/admin/settings', { instructions: { onbekend: 1 } }), 422, 'onbekend');
+  await rejects(admin.request('PATCH', '/v1/admin/settings', { instructions: { rules: [] } }), 422, 'rules');
+  await rejects(admin.request('PATCH', '/v1/admin/settings', { defaults: { tone: 'boos' } }), 422, 'tone');
+  await rejects(tool.request('PATCH', '/v1/admin/settings', { instructions: { specialCount: 3 } }), 403);
+  let s2 = await admin.request('PATCH', '/v1/admin/settings', { instructions: { specialCount: 3, careCount: 1, blockedDomains: ['https://www.Reviews.test/page'] }, defaults: { tipCount: 2, tone: 'expert' } });
+  assert.deepEqual([s2.instructions.specialCount, s2.instructions.careCount, s2.instructions.blockedDomains[0]], [3, 1, 'www.reviews.test']);
+  assert.equal(s2.instructionFields.factsMin.default, 18);
+  assert.equal((await testTool.options()).settings.tone.default, 'expert');
+  // the tool cannot send AmplifAI's instructions itself
+  await rejects(testTool.write({ product: helm(), settings: { specialCount: 4 } }), 422, 'specialCount');
+  const r = (await write(testTool)).result;
+  assert.deepEqual([r.content.special.length, r.content.care.length, r.content.tips.new.length, r.settings.tone], [3, 1, 2, 'expert']);
+  assert.equal(r.quality.ok, true, JSON.stringify(r.quality.issues));
+  // null puts back the built-in default
+  s2 = await admin.request('PATCH', '/v1/admin/settings', { instructions: { specialCount: null, careCount: null, blockedDomains: null }, defaults: { tipCount: null, tone: null } });
+  assert.deepEqual([s2.instructions.specialCount, s2.defaults.tipCount, s2.defaults.tone], [2, 3, 'warm']);
+  assert.ok(s2.instructions.blockedDomains.includes('tweakers.net'));
   await rejects(admin.request('PUT', '/v1/admin/ai', { mode: 'live' }), 409);
   await rejects(admin.request('PUT', '/v1/admin/ai', { key: 'geen-sleutel' }), 422);
 });
@@ -257,12 +277,13 @@ test('spending limits stop live mode before it goes over, the emergency stop wor
 
 test('live writing: Claude answers in JSON, a wrong answer is sent back once, research is reused for a new tone', async () => {
   // a stand-in for Anthropic: research answers with facts; writing first leaves out a piece, then gets it right
-  const calls = { research: 0, write: 0 };
+  const calls = { research: 0, write: 0 }, prompts = [];
   const page = { url: 'https://fietsshop.test/products/helm-aero', name: 'Velo Aero Fietshelm', brand: 'Velo', description: helm().description };
   const research = { product: { brand: 'Velo', name: 'Aero', short_name: 'Aero' }, facts: [{ category: 'brand', claim: 'Velo was founded in 1990.', url: page.url, snippet: 'since 1990' }], question_ideas: [] };
   const fake = http.createServer((req, res) => {
     let b = ''; req.on('data', c => b += c); req.on('end', async () => {
       const body = JSON.parse(b), isResearch = /You research one product/.test(body.system);
+      prompts.push(body.system);
       let text;
       if (isResearch) { calls.research++; text = '```json\n' + JSON.stringify(research) + '\n```' }
       else {
@@ -287,7 +308,7 @@ test('live writing: Claude answers in JSON, a wrong answer is sent back once, re
   await new Promise(r => fake.listen(0, '127.0.0.1', r));
   const oldBase = process.env.ANTHROPIC_BASE_URL;
   process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${fake.address().port}`;
-  const e = await boot({ seed: [['secrets', 'anthropic', { key: 'sk-ant-fake' }], ['platform', 'main', { mode: 'live' }]] });
+  const e = await boot({ seed: [['secrets', 'anthropic', { key: 'sk-ant-fake' }], ['platform', 'main', { mode: 'live', instructions: { extra: 'Noem nooit de prijs.', rules: ['Rule one.', 'Rule two.'], factsMin: 7, factsMax: 9 } }]] });
   const live = e.client('tk_t');
   try {
     let j = await live.waitFor(await live.write({ product: helm(), wait: true }), { interval: 50 });
@@ -297,6 +318,10 @@ test('live writing: Claude answers in JSON, a wrong answer is sent back once, re
     assert.equal(j.result.content.special[0].icon, 'tag');
     assert.ok(j.result.costEUR > 0);
     assert.equal(j.result.sources[0].claim, 'Velo was founded in 1990.');
+    // AmplifAI's instructions from the admin page go into the prompts
+    assert.match(prompts[0], /Aim for 7 to 9 facts/);
+    assert.ok(prompts[1].includes('- Rule one.\n- Rule two.') && prompts[1].includes('AmplifAI adds: Noem nooit de prijs.'));
+    assert.ok(!prompts[1].includes('No independent tests'));
     // the shop picks another tone: the research is reused, only the writing is paid again
     j = await live.waitFor(await live.write({ product: helm(), settings: { tone: 'expert' }, wait: true }), { interval: 50 });
     assert.equal(j.status, 'done');

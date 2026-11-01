@@ -53,7 +53,8 @@ export function checkContent(c, s) {
     const lim = path === 'intro.headline' ? LIMITS.headline : path === 'intro.title' ? LIMITS.title : path === 'story.text' ? LIMITS.story
       : ['lead', 'title', 'headline'].includes(last) ? LIMITS.lead : /lines/.test(path) ? LIMITS.line : LIMITS.text;
     if (v.length > lim) add(piece, 'warn', 'long', `Te lang (${v.length} tekens, richtlijn ${lim})`);
-    if (path === 'intro.headline' && v.split(/\s+/).length > 8) add(piece, 'warn', 'headline', 'Kopregel langer dan 8 woorden');
+    const words = s.headlineWords || 8;
+    if (path === 'intro.headline' && v.split(/\s+/).length > words) add(piece, 'warn', 'headline', `Kopregel langer dan ${words} woorden`);
     // numbers and years need a source, except in short labels
     if (NUMBER.test(v) && !/(label|note|eyebrow|^experience|^intro|^shortName)/.test(path)) {
       const src = srcOf(c, piece);
@@ -62,6 +63,8 @@ export function checkContent(c, s) {
   }
 
   // structure: counts follow the settings, every answer has its tip
+  if (s.specialCount && c.special?.length !== s.specialCount) add('special', 'warn', 'count', `${c.special?.length || 0} punten bij "bijzonder", ingesteld op ${s.specialCount}`);
+  if (s.careCount && c.care?.length !== s.careCount) add('care', 'warn', 'count', `${c.care?.length || 0} punten bij onderhoud, ingesteld op ${s.careCount}`);
   if (c.expect?.length !== s.expectCount) add('expect', 'warn', 'count', `${c.expect?.length || 0} punten bij "wat is normaal", ingesteld op ${s.expectCount}`);
   for (const lv of ['new', 'regular', 'expert']) if ((c.tips?.[lv]?.length || 0) < s.tipCount) add('tips', 'warn', 'count', `Minder tips dan ingesteld bij ${lv}`);
   const opts = c.question?.options || [];
@@ -86,5 +89,5 @@ export const repairWish = list => 'Fix these problems: ' + list.map(i => ({
   sell: 'it sounds like selling; give help, never push a purchase', delivery: 'it promises a delivery time; remove that',
   returns: 'it discourages returns; never do that', form: 'use the form of address the shop chose, consistently',
   source: 'it states a number without a source; cite a fact id or drop the number', missing: 'a language is missing',
-  long: 'it is too long; make it shorter', headline: 'the headline must be 8 words or fewer', answer: 'every answer needs its own tip',
+  long: 'it is too long; make it shorter', headline: 'the headline is too long; make it shorter', answer: 'every answer needs its own tip',
 }[i.code] || i.message)).join('; ') + '.';

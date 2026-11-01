@@ -17,7 +17,18 @@ The engine keeps no shops, products or guides. A result is kept for 7 days so th
 | `GET /v1/content/{id}` | the job and, when done, its result; `?lang=nl` for plain strings |
 | `GET /v1/health` | up, and test or live |
 
-AmplifAI only (admin key): `GET /v1/admin/status`, `PUT /v1/admin/ai` (Anthropic key, test or live), `PATCH /v1/admin/settings` (limits, model per level), `POST /v1/admin/stop` (emergency stop). The admin page at `/admin` uses these.
+AmplifAI only (admin key): `GET /v1/admin/status`, `PUT /v1/admin/ai` (Anthropic key, test or live), `PATCH /v1/admin/settings` (limits, model per level, general instructions, defaults for shops), `POST /v1/admin/stop` (emergency stop). The admin page at `/admin` uses these.
+
+## General instructions
+
+How the engine researches and writes for every product is set by AmplifAI on the admin page, under *Instructies* (`PATCH /v1/admin/settings { instructions, defaults }`; `null` for a field puts back the built-in default):
+
+- **Research:** how many facts to collect (default 18 to 30), how many question ideas, searches and page reads per product, and the blocked sources.
+- **Writing:** how many "special" and care points, the headline's maximum words, the thinking level, and an extra instruction for all writing.
+- **Fixed rules:** the rules in every writing prompt (`RULES` in `src/settings.js` are the defaults). The automatic check (`src/quality.js`) checks the default rules; a rule added here is followed by the writer but not checked automatically.
+- **Defaults for shops:** what the engine uses when the tool leaves a setting out (tone, je/u, languages, level, tips per level, answers, "what is normal", email points). `GET /v1/options` shows these defaults to the tool.
+
+The tool cannot send or change the instructions. Changes apply to everything written afterwards; a change to the research instructions means new research instead of the stored one.
 
 ## Run it
 
@@ -41,8 +52,8 @@ Research and writing are replaced by fixed templates (`src/mock-ai.js`). Everyth
 ## How it works
 
 1. **Product:** what the tool sent. When the name or a description of at least 200 characters is missing, the engine reads the product page (structured data first, then the page text; `src/crawl.js`), honouring robots.txt.
-2. **Research** (`src/ai.js`): Claude searches the brand's and manufacturer's own sites and collects facts, each with the URL it came from. Facts whose URL Claude did not actually see are dropped. Independent tests, reviews, forums and other shops are not allowed as sources (`RESEARCH.blockedDomains` in `src/settings.js`). In live mode the research is kept for `KEEP_DAYS` per product and quality level and reused, so a new tone or a retry only pays for writing; changed product data means new research.
-3. **Writing:** one call writes every piece in every language as JSON, citing facts by id. The engine checks the JSON against the schema itself and sends a wrong answer back once with what was wrong. (Anthropic's strict structured outputs refuse a schema this size.) The fixed AmplifAI rules (`RULES` in `src/settings.js`) go into every prompt; the shop's style wish cannot override them.
+2. **Research** (`src/ai.js`): Claude searches the brand's and manufacturer's own sites and collects facts, each with the URL it came from. Facts whose URL Claude did not actually see are dropped. Independent tests, reviews, forums and other shops are not allowed as sources (the blocked sources in the instructions). In live mode the research is kept for `KEEP_DAYS` per product and quality level and reused, so a new tone or a retry only pays for writing; changed product data means new research.
+3. **Writing:** one call writes every piece in every language as JSON, citing facts by id. The engine checks the JSON against the schema itself and sends a wrong answer back once with what was wrong. (Anthropic's strict structured outputs refuse a schema this size.) The fixed AmplifAI rules go into every prompt; the shop's style wish cannot override them.
 4. **Quality check** (`src/quality.js`): selling language, delivery promises, discouraging returns, numbers without a source, the wrong form of address, missing languages, length, repeated tips, answers without a tip. In live mode pieces that break a rule are rewritten once.
 5. **Revision:** the tool sends the whole result back with a piece and a wish. The wish is added as a fact (`w1`, …) so what the shop says about its own product can be cited; the rest of the content and all earlier facts stay.
 
@@ -81,7 +92,7 @@ The engine uses four calls: `get(collection, id)`, `put(collection, id, value)`,
 - `spend`: Anthropic costs per day
 - `runs`: the cost of each live product, for the estimates
 - `research`: live research per product and quality level, reused for `KEEP_DAYS`
-- `platform`: test or live, limits, model per level
+- `platform`: test or live, limits, model per level, general instructions, defaults for shops
 - `secrets`: the Anthropic key entered on the admin page, and the callback secret
 
 For production a database works the same way: one table with `collection`, `id`, `json`.

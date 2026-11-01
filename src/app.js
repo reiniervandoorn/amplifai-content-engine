@@ -12,7 +12,7 @@ import { product as readProduct, normalizeUrl } from './crawl.js';
 import * as realAi from './ai.js';
 import * as mockAi from './mock-ai.js';
 import { schemas, kindOf, getPath, setPath, ICONS } from './ai.js';
-import { LANGUAGES, RULES, defaultPlatform, checkBudget, checkLevels, resolve, publicSettings, describe, SettingsError } from './settings.js';
+import { LANGUAGES, INSTRUCTIONS, defaultPlatform, checkBudget, checkLevels, checkInstructions, checkDefaults, resolve, publicSettings, describe, SettingsError } from './settings.js';
 import { MODELS, LEVEL_IDS, EUR_PER_USD, usd, eur, perProduct } from './pricing.js';
 import { checkContent, repairWish } from './quality.js';
 import { identify, HttpError, newKey } from './auth.js';
@@ -47,7 +47,8 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
   const startMode = aiMode === 'mock' ? 'test' : 'live';
   const platform = async () => {
     const d = defaultPlatform(), s = await store.get('platform', 'main');
-    return { ...d, ...s, mode: s?.mode || startMode, levels: { ...d.levels, ...(s?.levels || {}) }, budget: { ...d.budget, ...(s?.budget || {}) } };
+    return { ...d, ...s, mode: s?.mode || startMode, levels: { ...d.levels, ...(s?.levels || {}) }, budget: { ...d.budget, ...(s?.budget || {}) },
+      instructions: { ...d.instructions, ...(s?.instructions || {}) }, defaults: { ...d.defaults, ...(s?.defaults || {}) } };
   };
   const savePlatform = async patch => { const pf = { ...((await store.get('platform', 'main')) || {}), ...patch, updatedAt: now() }; await store.put('platform', 'main', pf); return pf };
   const mode = async () => (await platform()).mode;
@@ -184,7 +185,8 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
   // Research is the costly half and does not depend on tone, form of address or languages, so in live mode
   // it is kept for keepDays and reused: a new tone, or a second try after a failure, only pays for writing.
   async function researchFor(AI, page, settings, say) {
-    const key = crypto.createHash('sha256').update(JSON.stringify([settings.model, page.url, page.name, page.brand, page.description, page.properties])).digest('hex').slice(0, 32);
+    const how = ['factsMin', 'factsMax', 'questionIdeas', 'maxSearches', 'maxFetches', 'blockedDomains'].map(k => settings[k]);
+    const key = crypto.createHash('sha256').update(JSON.stringify([settings.model, how, page.url, page.name, page.brand, page.description, page.properties])).digest('hex').slice(0, 32);
     const live = AI !== mockAi;
     const kept = live && await store.get('research', key);
     if (kept && Date.now() - Date.parse(kept.at) < keepDays * 864e5) { say('Bronnen van eerder onderzoek gebruikt (gratis)'); return kept.research }
@@ -221,7 +223,7 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
     for (const i of qa.issues) if (i.level === 'error' && piece[kindOf(i.piece)] && getPath(content, i.piece) != null) byPiece.set(i.piece, [...(byPiece.get(i.piece) || []), i]);
     for (const [path, issues] of [...byPiece].slice(0, 6)) {
       say('Kwaliteitscheck: ' + issues[0].message.toLowerCase() + '…');
-      try { setPath(content, path, (await AI.revise({ ...base, settings, rules: RULES, current: content, path, wish: repairWish(issues) })).piece) }
+      try { setPath(content, path, (await AI.revise({ ...base, settings, rules: settings.rules, current: content, path, wish: repairWish(issues) })).piece) }
       catch (e) { if (e.code === 'budget') throw e }
     }
     return checkContent(content, settings);
@@ -261,7 +263,7 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
     const pf = await platform(), runs = await store.list('runs');
     return {
       formatVersion: FORMAT_VERSION,
-      settings: describe(),
+      settings: describe(pf.defaults),
       languages: LANGUAGES,
       qualities: LEVEL_IDS.map(id => ({ id, name: pf.levels[id].name, blurb: pf.levels[id].blurb, estimatedCostEUR: Math.round(perProduct(pf.levels[id].model, runs).eur * 100) / 100 })),
       pieces: PIECES,
@@ -279,7 +281,7 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
       const page = await fillFromPage(given, say);
       const research = await researchFor(AI, page, settings, say);
       say(`Teksten schrijven (${settings.languages.join(', ')})…`);
-      const { content } = await AI.write({ page, research, shop, settings, rules: RULES });
+      const { content } = await AI.write({ page, research, shop, settings, rules: settings.rules });
       const quality = await repair(AI, content, { page, research, shop }, settings, say);
       const costUsd = jobCost.getStore().usd;
       // what one product cost from start to finish: the basis for the cost estimates
@@ -289,10 +291,10 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
   });
 
   // A result the tool sends back, checked, so a revision starts from something whole.
-  function readResult(r) {
+  function readResult(r, pf) {
     if (!r || typeof r !== 'object' || r.formatVersion !== FORMAT_VERSION || !r.content || !Array.isArray(r.sources) || !r.product?.url)
       throw new SettingsError(`content: stuur het hele resultaat terug zoals de engine het gaf (formatVersion ${FORMAT_VERSION})`, 'content');
-    const settings = resolve(r.settings, null);
+    const settings = resolve(r.settings, pf);
     const parsed = schemas(settings.languages).Content.safeParse(r.content);
     if (!parsed.success) throw new SettingsError('content: de inhoud heeft niet de verwachte vorm (' + parsed.error.issues[0]?.path.join('.') + ')', 'content');
     return { settings, content: parsed.data };
@@ -300,10 +302,10 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
 
   // Rewrite one piece, with the shop's wish.
   route('POST', '/v1/content/revise', 'tool', async ({ body, who }) => {
-    const r = body.content;
-    const { content } = readResult(r);
+    const r = body.content, pf = await platform();
+    const { content } = readResult(r, pf);
     // the level, tone or form of address may have changed since the content was written
-    const settings = resolve({ ...r.settings, ...(body.settings || {}) }, await platform());
+    const settings = resolve({ ...r.settings, ...(body.settings || {}) }, pf);
     if (settings.languages.join() !== r.languages.join()) throw new SettingsError('settings.languages: een revisie houdt dezelfde talen; schrijf de inhoud opnieuw voor andere talen', 'settings.languages');
     const piecePath = String(body.piece || '');
     if (!kindOf(piecePath) || getPath(content, piecePath) == null) throw new SettingsError(`piece: onbekend onderdeel "${piecePath}". Zie GET /v1/options voor de onderdelen.`, 'piece');
@@ -318,7 +320,7 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
       const page = { ...r.product, properties: [] };
       const research = { ...(r.research || {}), facts };
       say(`Onderdeel ${piecePath} herschrijven…`);
-      const { piece } = await AI.revise({ page, research, shop: r.shop, settings, rules: RULES, current: content, path: piecePath, wish });
+      const { piece } = await AI.revise({ page, research, shop: r.shop, settings, rules: settings.rules, current: content, path: piecePath, wish });
       setPath(content, piecePath, piece);
       const quality = await repair(AI, content, { page, research, shop: r.shop }, settings, say);
       return resultOf({ test, settings, page, shop: r.shop || null, research, facts, content, quality, costUsd: jobCost.getStore().usd,
@@ -328,7 +330,7 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
 
   // Check content against the AmplifAI rules, e.g. after the shop edited a text by hand. Free and instant.
   route('POST', '/v1/content/check', 'tool', async ({ body }) => {
-    const { settings, content } = readResult(body.content);
+    const { settings, content } = readResult(body.content, await platform());
     return checkContent(content, settings);
   });
 
@@ -349,6 +351,8 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
       budget: await spending(),
       levels: LEVEL_IDS.map(id => { const est = perProduct(pf.levels[id].model, runs); return { id, ...pf.levels[id], modelLabel: MODELS[pf.levels[id].model]?.label, perProductEUR: est.eur, basedOn: est.basedOn } }),
       models: Object.entries(MODELS).map(([id, m]) => ({ id, label: m.label })),
+      instructions: pf.instructions, instructionFields: describe(defaultPlatform().instructions, INSTRUCTIONS),
+      defaults: pf.defaults, settingFields: describe(),
       keys: { tool: toolKey || null, test: toolTestKey || null, callbackSecret: await callbackSecret() },
       totalEUR: eur(await spentUsd('')),
       recent,
@@ -378,6 +382,8 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
     await savePlatform({
       ...(body.budget && { budget: { ...pf.budget, ...checkBudget(body.budget) } }),
       ...(body.levels && { levels: { ...pf.levels, ...checkLevels(body.levels) } }),
+      ...(body.instructions && { instructions: checkInstructions(body.instructions, pf.instructions) }),
+      ...(body.defaults && { defaults: checkDefaults(body.defaults, pf.defaults) }),
     });
     return status();
   });
