@@ -14,7 +14,7 @@ import * as mockAi from './mock-ai.js';
 import { schemas, kindOf, getPath, setPath, ICONS } from './ai.js';
 import { LANGUAGES, INSTRUCTIONS, defaultPlatform, checkBudget, checkLevels, checkInstructions, checkDefaults, resolve, publicSettings, describe, SettingsError } from './settings.js';
 import { MODELS, LEVEL_IDS, EUR_PER_USD, usd, eur, perProduct } from './pricing.js';
-import { checkContent, repairWish } from './quality.js';
+import { checkContent, repairWish, CHECKS } from './quality.js';
 import { identify, HttpError, newKey } from './auth.js';
 import { flat } from './formats.js';
 import { Jobs } from './jobs.js';
@@ -185,7 +185,7 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
   // Research is the costly half and does not depend on tone, form of address or languages, so in live mode
   // it is kept for keepDays and reused: a new tone, or a second try after a failure, only pays for writing.
   async function researchFor(AI, page, settings, say) {
-    const how = ['factsMin', 'factsMax', 'questionIdeas', 'maxSearches', 'maxFetches', 'blockedDomains'].map(k => settings[k]);
+    const how = ['researchBrief', 'factsMin', 'factsMax', 'questionIdeas', 'maxSearches', 'maxFetches', 'blockedDomains'].map(k => settings[k]);
     const key = crypto.createHash('sha256').update(JSON.stringify([settings.model, how, page.url, page.name, page.brand, page.description, page.properties])).digest('hex').slice(0, 32);
     const live = AI !== mockAi;
     const kept = live && await store.get('research', key);
@@ -351,7 +351,7 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
       budget: await spending(),
       levels: LEVEL_IDS.map(id => { const est = perProduct(pf.levels[id].model, runs); return { id, ...pf.levels[id], modelLabel: MODELS[pf.levels[id].model]?.label, perProductEUR: est.eur, basedOn: est.basedOn } }),
       models: Object.entries(MODELS).map(([id, m]) => ({ id, label: m.label })),
-      instructions: pf.instructions, instructionFields: describe(defaultPlatform().instructions, INSTRUCTIONS),
+      instructions: pf.instructions, instructionFields: describe(defaultPlatform().instructions, INSTRUCTIONS), checks: CHECKS,
       defaults: pf.defaults, settingFields: describe(),
       keys: { tool: toolKey || null, test: toolTestKey || null, callbackSecret: await callbackSecret() },
       totalEUR: eur(await spentUsd('')),
@@ -377,15 +377,23 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
     }
     return status();
   });
+  // only what differs from the built-in default is stored, so an untouched field follows later improvements to it
+  const onlyChanged = (obj, def) => Object.fromEntries(Object.entries(obj).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(def[k])));
   route('PATCH', '/v1/admin/settings', 'admin', async ({ body }) => {
     const pf = await platform();
     await savePlatform({
       ...(body.budget && { budget: { ...pf.budget, ...checkBudget(body.budget) } }),
       ...(body.levels && { levels: { ...pf.levels, ...checkLevels(body.levels) } }),
-      ...(body.instructions && { instructions: checkInstructions(body.instructions, pf.instructions) }),
-      ...(body.defaults && { defaults: checkDefaults(body.defaults, pf.defaults) }),
+      ...(body.instructions && { instructions: onlyChanged(checkInstructions(body.instructions, pf.instructions), defaultPlatform().instructions) }),
+      ...(body.defaults && { defaults: onlyChanged(checkDefaults(body.defaults, pf.defaults), defaultPlatform().defaults) }),
     });
     return status();
+  });
+  // The instructions exactly as Claude gets them, for the shop settings in the query (languages=nl,en&tone=…).
+  route('GET', '/v1/admin/prompt', 'admin', async ({ q }) => {
+    const given = Object.fromEntries(Object.entries(q).filter(([k]) => k in describe()).map(([k, v]) => [k, k === 'languages' ? v.split(',') : /^\d+$/.test(v) ? Number(v) : v]));
+    const settings = resolve(given, await platform());
+    return { settings: publicSettings(settings), research: realAi.researchSystem(settings), writing: realAi.writerSystem(settings) };
   });
   // emergency stop: back to test mode, nothing waiting starts; a job being written stops at its next call to Claude
   route('POST', '/v1/admin/stop', 'admin', async () => { await savePlatform({ mode: 'test' }); return { mode: 'test', ...jobs.cancelAll() } });

@@ -81,6 +81,9 @@ th{font-weight:500;color:var(--mute);font-size:12px}
 .group>.gh p{margin:2px 0 0;font-size:13px;color:var(--mute)}
 .pieces{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
 .pieces.two{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.pieces.wide{grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr))}
+.pieces.wide .piece{padding:10px 12px}
+[data-page="instructies"] textarea{overflow:hidden;min-height:0;line-height:1.45}
 .piece{border:1px solid var(--line);border-radius:12px;padding:12px 14px;position:relative}
 .piece.flag{border-color:#f3c1c1}
 .piece .ph{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px}
@@ -207,31 +210,59 @@ pre{background:#1d1d1f;color:#f5f5f7;padding:14px;border-radius:12px;overflow:au
   <!-- ───────── Instructies ───────── -->
   <section data-page="instructies" class="hide">
     <div class="card">
-      <h2>Algemene instructies</h2>
-      <p class="mute small" style="margin:0">Hoe de engine voor elk product onderzoekt en schrijft. De tool kan deze niet aanpassen; shops kiezen alleen toon, aanspreekvorm, talen, kwaliteit en aantallen. Wijzigingen gelden voor alles wat hierna geschreven wordt.</p>
+      <h2>Instructies</h2>
+      <p class="mute small">Alles wat de engine aan Claude vraagt, voor elk product. De tool kan dit niet aanpassen; shops kiezen alleen toon, aanspreekvorm, talen, kwaliteit en aantallen. Teksten voor Claude staan in het Engels: dat volgt het model het best. <code>{tipCount}</code> en dergelijke vult de engine in met de instellingen. Wijzigingen gelden voor alles wat hierna geschreven wordt.</p>
+      <nav class="chips" id="iChips">
+        <a href="#instructies/i-tone">Toon</a><a href="#instructies/i-pieces">Onderdelen</a><a href="#instructies/i-writing">Schrijven</a><a href="#instructies/i-research">Onderzoek</a>
+        <a href="#instructies/i-rules">Regels</a><a href="#instructies/i-check">Kwaliteitscheck</a><a href="#instructies/i-defaults">Standaard voor shops</a><a href="#instructies/i-prompt">Volledige opdracht</a>
+      </nav>
     </div>
-    <div class="card">
-      <div class="row" style="justify-content:space-between"><h2>Onderzoek</h2><button class="link" data-reset="research">Standaard</button></div>
-      <p class="mute small">Claude zoekt bij het merk en de fabrikant naar feiten, elk met een bron.</p>
-      <div class="grid" id="iResearch"></div>
-      <div class="one" id="iResearchLong" style="margin-top:12px"></div>
+    <div class="card group" id="i-tone">
+      <div class="gh"><div><h2>Toon</h2><p>De shop kiest een van deze vier in de tool. Dit is wat Claude bij die keuze te lezen krijgt.</p></div><button class="link" data-reset="tone">Standaard</button></div>
+      <div class="pieces wide" data-fields="tone"></div>
     </div>
-    <div class="card">
-      <div class="row" style="justify-content:space-between"><h2>Schrijven</h2><button class="link" data-reset="writing">Standaard</button></div>
-      <p class="mute small">Vaste aantallen en de toon van de opdracht. De aantallen voor tips, antwoorden, "wat is normaal" en e-mails kiest de shop; de standaard daarvoor staat hieronder.</p>
-      <div class="grid" id="iWriting"></div>
-      <div class="one" id="iWritingLong" style="margin-top:12px"></div>
+    <div class="card group" id="i-pieces">
+      <div class="gh"><div><h2>Onderdelen van de gids</h2><p>Per onderdeel wat Claude schrijft. Invulvelden: <code>{headlineWords}</code> <code>{specialCount}</code> <code>{careCount}</code> <code>{expectCount}</code> <code>{answerCount}</code> <code>{tipCount}</code> <code>{emailItems}</code>.</p></div><button class="link" data-reset="pieces">Standaard</button></div>
+      <div class="pieces wide" data-fields="pieces"></div>
     </div>
-    <div class="card rules">
-      <div class="row" style="justify-content:space-between"><h2>Vaste regels</h2><button class="link" data-reset="rules">Standaard</button></div>
-      <p class="mute small">Gaan in elke schrijfopdracht mee, in het Engels. De automatische kwaliteitscheck controleert de standaardregels (niet verkopen, geen bezorgbelofte, retour niet ontmoedigen, bronnen bij getallen, je/u). Een regel die je toevoegt volgt Claude wel, maar wordt niet automatisch gecontroleerd.</p>
-      <div id="iRules"></div>
+    <div class="card group" id="i-writing">
+      <div class="gh"><div><h2>Schrijven</h2><p>De opdracht, vaste aantallen en een extra instructie voor alles. Aantallen voor tips, antwoorden, "wat is normaal" en e-mails kiest de shop.</p></div><button class="link" data-reset="writing">Standaard</button></div>
+      <div class="grid" data-fields="writing" data-kind="short"></div>
+      <div class="one" data-fields="writing" data-kind="long" style="margin-top:12px"></div>
     </div>
-    <div class="card">
-      <div class="row" style="justify-content:space-between"><h2>Standaard voor shops</h2><button class="link" data-reset="defaults">Standaard</button></div>
-      <p class="mute small">Wat de engine gebruikt als de tool een instelling niet meestuurt. De tool ziet deze standaard ook bij <code>GET /v1/options</code>.</p>
+    <div class="card group" id="i-research">
+      <div class="gh"><div><h2>Onderzoek</h2><p>Waar Claude naar zoekt, welke bronnen mogen, en hoeveel.</p></div><button class="link" data-reset="research">Standaard</button></div>
+      <div class="grid" data-fields="research" data-kind="short"></div>
+      <div class="one" data-fields="research" data-kind="long" style="margin-top:12px"></div>
+    </div>
+    <div class="card group rules" id="i-rules">
+      <div class="gh"><div><h2>Regels in de schrijfopdracht</h2><p>Gaan in elke schrijfopdracht mee. Claude volgt ze; de kwaliteitscheck hieronder controleert daarna wat automatisch te controleren is.</p></div><button class="link" data-reset="rules">Standaard</button></div>
+      <div data-fields="rules" data-kind="long"></div>
+    </div>
+    <div class="card group" id="i-check">
+      <div class="gh"><div><h2>Kwaliteitscheck</h2><p>"Voldoet aan de AmplifAI-regels" betekent: geen enkele controle hieronder staat op <b>fout</b>. Een fout herschrijft de engine in live-modus één keer automatisch; een <b>opmerking</b> laat hij staan en toont hij aan de tool; <b>uit</b> wordt niet gecontroleerd.</p></div><button class="link" data-reset="check">Standaard</button></div>
+      <div class="scroll"><table><thead><tr><th>Controle</th><th>Wat wordt gecontroleerd</th><th style="width:140px">Bij een vondst</th></tr></thead><tbody id="iChecks"></tbody></table></div>
+      <div class="grid" style="margin-top:16px" data-fields="check" data-kind="long"></div>
+      <h3 style="margin:16px 0 8px">Lengtes (richtlijn, eerste taal)</h3>
+      <div class="grid" data-fields="check" data-kind="short"></div>
+    </div>
+    <div class="card group" id="i-defaults">
+      <div class="gh"><div><h2>Standaard voor shops</h2><p>Wat de engine gebruikt als de tool een instelling niet meestuurt. De tool ziet deze standaard ook bij <code>GET /v1/options</code>.</p></div><button class="link" data-reset="defaults">Standaard</button></div>
       <div class="grid" id="iDefaults"></div>
       <div class="checks" id="iDefaultLangs"></div>
+    </div>
+    <div class="card group" id="i-prompt">
+      <div class="gh"><div><h2>Volledige opdracht</h2><p>Precies wat Claude krijgt, met de opgeslagen instructies, voor de instellingen die je hier kiest. Het product en de gevonden feiten komen er per product bij.</p></div></div>
+      <div class="row">
+        <select id="pvTone" style="width:auto"></select><select id="pvForm" style="width:auto"></select><select id="pvLength" style="width:auto"></select>
+        <input id="pvLangs" value="nl,en" style="width:110px" title="Talen, met komma's">
+        <button id="pvBtn">Toon de opdracht</button>
+      </div>
+      <p id="pvNote" class="small mute hide" style="margin-top:8px">Je hebt niet-opgeslagen wijzigingen; die zitten hier nog niet in.</p>
+      <div id="pvOut" class="hide" style="margin-top:12px">
+        <h3 style="margin-bottom:6px">Schrijven</h3><pre id="pvWriting" style="white-space:pre-wrap"></pre>
+        <h3 style="margin:14px 0 6px">Onderzoek</h3><pre id="pvResearch" style="white-space:pre-wrap"></pre>
+      </div>
     </div>
   </section>
 
@@ -319,7 +350,13 @@ async function start() {
   if (!key) { try { key = (await (await fetch(base + '/v1/dev/login')).json()).adminKey || null } catch { } }
   if (!key) return showLogin();
   try { st = await api('GET', '/v1/admin/status'); opts = await api('GET', '/v1/options') }
-  catch (e) { if (e.status === 401 || e.status === 403) { key = null; return showLogin(e.message) } throw e }
+  catch (e) {
+    if (e.status !== 401 && e.status !== 403) throw e;
+    // a key remembered from an earlier run: forget it and try the local login once more
+    try { sessionStorage.removeItem('ce-admin') } catch { }
+    if (!start.retried) { start.retried = true; key = null; return start() }
+    key = null; return showLogin(e.message);
+  }
   try { sessionStorage.setItem('ce-admin', key) } catch { }
   $('#login').classList.add('hide'); $('#tabs').classList.remove('hide');
   fillForm(); render(); showTab();
@@ -327,7 +364,8 @@ async function start() {
 function showLogin(err) { $('#login').classList.remove('hide'); $('#tabs').classList.add('hide'); $$('[data-page]').forEach(p => p.classList.add('hide')); say($('#loginErr'), err || '', 'bad') }
 $('#loginBtn').onclick = () => { key = $('#adminKey').value.trim(); start() };
 function showTab() {
-  const tab = (location.hash.slice(1).split('/')[0]) || 'proberen';
+  const [tab0, sub] = location.hash.slice(1).split('/'), tab = tab0 || 'proberen';
+  if (sub) setTimeout(() => document.getElementById(sub)?.scrollIntoView({ behavior: 'smooth' }), 30);
   const known = $$('[data-page]').some(p => p.dataset.page === tab) ? tab : 'proberen';
   $$('[data-page]').forEach(p => p.classList.toggle('hide', p.dataset.page !== known));
   $$('#tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === known));
@@ -387,58 +425,82 @@ document.addEventListener('click', e => {
 });
 
 /* ── instructions ── */
-const GROUPS = { research: ['factsMin', 'factsMax', 'questionIdeas', 'maxSearches', 'maxFetches', 'blockedDomains'], writing: ['specialCount', 'careCount', 'headlineWords', 'effort', 'extra'], rules: ['rules'] };
 const DEFAULT_KEYS = ['quality', 'tone', 'formality', 'length', 'tipCount', 'answerCount', 'expectCount', 'emailItems', 'languages'];
+const LEVEL_NAMES = { error: 'Fout', warn: 'Opmerking', off: 'Uit' };
+const groupKeys = g => Object.entries(st.instructionFields).filter(([, f]) => f.group === g).map(([k]) => k);
 const dirty = () => !!draft && JSON.stringify(draft) !== JSON.stringify({ instructions: st.instructions, defaults: st.defaults });
 function field(k, f, v, scope) {
   const attr = `data-${scope}="${k}"`, help = f.help ? `<span class="help">${esc(f.help)}</span>` : '';
-  if (f.type === 'int') return `<label class="f">${esc(f.label)}<input type="number" ${attr} min="${f.min}" max="${f.max}" step="1" value="${v}">${help}</label>`;
-  if (f.type === 'enum') return `<label class="f">${esc(f.label)}<select ${attr}>${f.options.map(o => `<option value="${o}" ${o === v ? 'selected' : ''}>${esc(NAMES[o] || o)}</option>`).join('')}</select>${help}</label>`;
-  if (f.type === 'text') return `<label class="f">${esc(f.label)}<textarea ${attr} maxlength="${f.max}">${esc(v)}</textarea>${help}</label>`;
-  if (f.type === 'textlist') return `<label class="f">${esc(f.label)}<textarea ${attr} rows="${Math.min(14, Math.max(4, v.length + 1))}">${esc(v.join('\n'))}</textarea>${help}</label>`;
+  const changed = scope === 'instr' && JSON.stringify(v) !== JSON.stringify(f.default) ? ' <span class="pill warn" style="padding:0 7px">aangepast</span>' : '';
+  if (f.type === 'int') return `<label class="f">${esc(f.label)}${changed}<input type="number" ${attr} min="${f.min}" max="${f.max}" step="1" value="${v}">${help}</label>`;
+  if (f.type === 'enum') return `<label class="f">${esc(f.label)}${changed}<select ${attr}>${f.options.map(o => `<option value="${o}" ${o === v ? 'selected' : ''}>${esc(NAMES[o] || o)}</option>`).join('')}</select>${help}</label>`;
+  if (f.type === 'text') return `<label class="f">${esc(f.label)}${changed}<textarea ${attr} rows="${f.rows || 3}">${esc(v)}</textarea>${help}</label>`;
+  if (f.type === 'textlist') return `<label class="f">${esc(f.label)}${changed}<textarea ${attr} rows="${Math.min(14, Math.max(4, v.length + 1))}">${esc(v.join('\n'))}</textarea>${help}</label>`;
   return '';
 }
 function renderInstructions() {
   const d = draft || { instructions: st.instructions, defaults: st.defaults }, F = st.instructionFields;
-  const short = ks => ks.filter(k => F[k].type === 'int' || F[k].type === 'enum').map(k => field(k, F[k], d.instructions[k], 'instr')).join('');
-  const long = ks => ks.filter(k => F[k].type === 'text' || F[k].type === 'textlist').map(k => field(k, F[k], d.instructions[k], 'instr')).join('');
-  $('#iResearch').innerHTML = short(GROUPS.research); $('#iResearchLong').innerHTML = long(GROUPS.research);
-  $('#iWriting').innerHTML = short(GROUPS.writing); $('#iWritingLong').innerHTML = long(GROUPS.writing);
-  $('#iRules').innerHTML = long(GROUPS.rules);
+  for (const box of $$('[data-fields]')) {
+    const g = box.dataset.fields, kind = box.dataset.kind;
+    const keys = groupKeys(g).filter(k => F[k].type !== 'checks' && (!kind || (kind === 'short') === ['int', 'enum'].includes(F[k].type)));
+    box.innerHTML = keys.map(k => box.classList.contains('pieces') ? `<div class="piece">${field(k, F[k], d.instructions[k], 'instr')}</div>` : field(k, F[k], d.instructions[k], 'instr')).join('');
+  }
+  fitAll();
+  $('#iChecks').innerHTML = Object.entries(st.checks).map(([k, c]) => `<tr><td><b>${esc(c.label)}</b><div class="small mute">${k}</div></td><td class="small">${esc(c.about)}</td>
+    <td><select data-check="${k}">${['error', 'warn', 'off'].map(l => `<option value="${l}" ${d.instructions.checks[k] === l ? 'selected' : ''}>${LEVEL_NAMES[l]}</option>`).join('')}</select></td></tr>`).join('');
   const S = st.settingFields;
   $('#iDefaults').innerHTML = DEFAULT_KEYS.filter(k => k !== 'languages').map(k => field(k, S[k], d.defaults[k], 'def')).join('');
   $('#iDefaultLangs').innerHTML = '<span class="small mute">Talen:</span>' + S.languages.options.map(l => `<label><input type="checkbox" data-deflang="${l}" ${d.defaults.languages.includes(l) ? 'checked' : ''}> ${esc(opts.languages[l])}</label>`).join('');
+  const sel = (id, f) => { $(id).innerHTML = f.options.map(o => `<option value="${o}" ${o === d.defaults[f === S.tone ? 'tone' : f === S.formality ? 'formality' : 'length']}>${esc(NAMES[o] || o)}</option>`).join('') };
+  sel('#pvTone', S.tone); sel('#pvForm', S.formality); sel('#pvLength', S.length);
+  $('#pvTone').value = d.defaults.tone; $('#pvForm').value = d.defaults.formality; $('#pvLength').value = d.defaults.length;
 }
+// text boxes grow with their text, so a whole instruction is readable without scrolling inside it
+const fit = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px' };
+const fitAll = () => requestAnimationFrame(() => $$('[data-page="instructies"] textarea').forEach(fit));
+addEventListener('hashchange', () => { if (location.hash.startsWith('#instructies')) fitAll() });
 function readInstructions() {
   draft = draft || structuredClone({ instructions: st.instructions, defaults: st.defaults });
   for (const el of $$('[data-instr]')) {
     const k = el.dataset.instr, f = st.instructionFields[k];
     draft.instructions[k] = f.type === 'int' ? Number(el.value) : f.type === 'textlist' ? el.value.split('\n').map(x => x.trim()).filter(Boolean) : el.value;
   }
+  for (const el of $$('[data-check]')) draft.instructions.checks[el.dataset.check] = el.value;
   for (const el of $$('[data-def]')) { const k = el.dataset.def; draft.defaults[k] = st.settingFields[k].type === 'int' ? Number(el.value) : el.value }
   draft.defaults.languages = $$('[data-deflang]:checked').map(i => i.dataset.deflang);
+  $('#pvNote').classList.toggle('hide', !dirty());
   showTab();
 }
-$('[data-page="instructies"]').addEventListener('input', readInstructions);
-$('[data-page="instructies"]').addEventListener('change', readInstructions);
+const iPage = $('[data-page="instructies"]');
+iPage.addEventListener('input', e => { if (e.target.tagName === 'TEXTAREA') fit(e.target); if (!e.target.closest('#i-prompt')) readInstructions() });
+iPage.addEventListener('change', e => { if (!e.target.closest('#i-prompt')) readInstructions() });
 $$('[data-reset]').forEach(b => b.onclick = () => {
   draft = draft || structuredClone({ instructions: st.instructions, defaults: st.defaults });
   const g = b.dataset.reset;
   if (g === 'defaults') for (const k of DEFAULT_KEYS) draft.defaults[k] = structuredClone(st.settingFields[k].default);
-  else for (const k of GROUPS[g]) draft.instructions[k] = structuredClone(st.instructionFields[k].default);
+  else for (const k of groupKeys(g)) draft.instructions[k] = structuredClone(st.instructionFields[k].default);
   renderInstructions(); showTab();
 });
 $('#undoBtn').onclick = () => { draft = null; renderInstructions(); showTab() };
 $('#saveBtn').onclick = async () => {
   $('#saveBtn').disabled = true;
   try {
-    st = await api('PATCH', '/v1/admin/settings', draft);
+    // send only what changed, so a field AmplifAI did not touch keeps following the built-in default
+    const changed = obj => Object.fromEntries(Object.entries(draft[obj]).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(st[obj][k])));
+    st = await api('PATCH', '/v1/admin/settings', { instructions: changed('instructions'), defaults: changed('defaults') });
     opts = await api('GET', '/v1/options');
-    draft = null; render(); fillForm(); showTab();
+    draft = null; render(); fillForm(); showTab(); $('#pvNote').classList.add('hide');
     $('#saveBar').classList.remove('hide'); $('#saveMsg').textContent = 'Opgeslagen. Geldt voor alles wat hierna geschreven wordt.';
     setTimeout(showTab, 2500);
   } catch (e) { $('#saveMsg').textContent = e.message + (e.field ? ` (${e.field})` : '') }
   finally { $('#saveBtn').disabled = false }
+};
+$('#pvBtn').onclick = async () => {
+  const q = new URLSearchParams({ tone: $('#pvTone').value, formality: $('#pvForm').value, length: $('#pvLength').value, languages: $('#pvLangs').value.replace(/\s/g, '') });
+  try {
+    const p = await api('GET', '/v1/admin/prompt?' + q);
+    $('#pvWriting').textContent = p.writing; $('#pvResearch').textContent = p.research; $('#pvOut').classList.remove('hide');
+  } catch (e) { alert(e.message) }
 };
 addEventListener('beforeunload', e => { if (dirty()) e.preventDefault() });
 
@@ -508,7 +570,7 @@ function showResult() {
     esc(NAMES[current.settings.quality] || current.settings.quality), esc(NAMES[current.settings.tone]), esc(NAMES[current.settings.formality]), `${used} bronnen gebruikt`,
     current.revised ? `gewijzigd: ${esc(current.revised.piece)}` : ''].filter(Boolean).join(' · ');
   $('#langSeg').innerHTML = current.languages.map(l => `<button data-lang="${l}" class="${l === lang ? 'on' : ''}">${l.toUpperCase()}</button>`).join('');
-  $('#qualityBox').innerHTML = `<div class="note ${q.errors ? 'bad' : q.warnings ? 'warn' : 'ok'}">${q.errors ? `<b>${q.errors} regel${q.errors > 1 ? 's' : ''} overtreden</b>` : '<b>Voldoet aan de AmplifAI-regels</b>'}${q.warnings ? ` · ${q.warnings} opmerking${q.warnings > 1 ? 'en' : ''}` : ''}${q.issues.length ? ': ' + q.issues.map(i => `<a href="#" data-goto="${esc(i.piece)}">${esc(i.piece)}</a>`).join(', ') : ''}</div>`;
+  $('#qualityBox').innerHTML = `<div class="note ${q.errors ? 'bad' : q.warnings ? 'warn' : 'ok'}">${q.errors ? `<b>${q.errors} regel${q.errors > 1 ? 's' : ''} overtreden</b>` : '<b>Voldoet aan de AmplifAI-regels</b>'}${q.warnings ? ` · ${q.warnings} opmerking${q.warnings > 1 ? 'en' : ''}` : ''}${q.issues.length ? ': ' + q.issues.map(i => `<a href="#" data-goto="${esc(i.piece)}">${esc(i.piece)}</a>`).join(', ') : ''} · <a href="#instructies/i-check">wat wordt er gecontroleerd?</a></div>`;
   $('#json').textContent = JSON.stringify(current, null, 2);
 
   const G = [];

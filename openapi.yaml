@@ -118,11 +118,34 @@ paths:
                     effort: { type: string, enum: [low, medium, high, xhigh], default: high }
                     extra: { type: string, maxLength: 2000, description: Extra instruction for all writing }
                     rules: { type: array, items: { type: string }, maxItems: 30, description: The fixed rules in every writing prompt }
+                    researchBrief: { type: string, description: "The research instruction; {factsMin}, {factsMax}, {questionIdeas} are filled in" }
+                    writerIntro: { type: string }
+                    shortLength: { type: string }
+                    toneWarm: { type: string }
+                    toneNeutral: { type: string }
+                    toneExpert: { type: string }
+                    tonePlayful: { type: string }
+                    pieceIntro: { type: string, description: "One line per piece; also pieceStory, pieceSpecial, pieceExpect, pieceFact, pieceCare, pieceExperience, pieceQuestion, pieceTips, pieceWhileYouWait, pieceFirstMinutes" }
+                    checks: { type: object, description: "Per check (missing, sell, delivery, returns, form, source, answer, keys, long, headline, count, repeat): error, warn or off", additionalProperties: { type: string, enum: [error, warn, off] } }
+                    sellWords: { type: array, items: { type: string } }
+                    deliveryWords: { type: array, items: { type: string }, description: "# stands for a number" }
+                    returnsWords: { type: array, items: { type: string } }
+                    maxHeadline: { type: integer }
+                    maxTitle: { type: integer }
+                    maxLead: { type: integer }
+                    maxStory: { type: integer }
+                    maxText: { type: integer }
+                    maxLine: { type: integer }
                 defaults: { $ref: '#/components/schemas/Settings' }
                 levels:
                   type: object
                   additionalProperties: { type: object, properties: { model: { type: string, enum: [claude-haiku-5-5, claude-sonnet-5-5, claude-opus-5-5, claude-fable-5-1] } } }
       responses: { '200': { description: The new status } }
+  /v1/admin/prompt:
+    get:
+      tags: [admin]
+      summary: The full research and writing instruction exactly as Claude gets it, for shop settings in the query (e.g. tone=playful&languages=nl,en)
+      responses: { '200': { description: "{ settings, research, writing }" } }
   /v1/admin/stop:
     post:
       tags: [admin]

@@ -38,7 +38,7 @@ npm run test-mode   # starts on http://localhost:4317
 - **Admin page:** http://localhost:4317/admin opens by itself on your own computer. It is AmplifAI's own screen:
   - test or live, the Anthropic key, spending limits and the emergency stop
   - which Claude model is behind each quality level
-  - the general instructions (*Instructies*): how many facts to collect, how many points per piece, the fixed rules, an extra instruction, and the defaults for shops
+  - the instructions (*Instructies*): what each tone means, what each piece of the guide should be, the research brief, the rules, the quality check, the defaults for shops, and the full instruction as Claude gets it
   - the keys for the tool
   - a **Proberen** box that makes the same call the tool makes, and shows the result with a **Wijzig** (change) button on every piece
 - **Your key:** the admin page shows both keys under *Koppeling met de tool*. They are also in `data/tool-test-key.txt` and `data/tool-key.txt`.

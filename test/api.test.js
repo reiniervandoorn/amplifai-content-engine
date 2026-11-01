@@ -11,7 +11,7 @@ import { FileStore } from '../src/store.js';
 import { ContentEngine } from '../clients/js/amplifai-content.js';
 import * as mockAi from '../src/mock-ai.js';
 
-let dir, server, base, admin, tool, testTool;
+let dir, server, base, admin, tool, testTool, e0;
 
 // an engine on a free port; the caller closes it
 async function boot(opts = {}) {
@@ -27,7 +27,7 @@ async function boot(opts = {}) {
 
 before(async () => {
   delete process.env.ANTHROPIC_API_KEY;
-  const e = await boot();
+  const e = e0 = await boot();
   ({ dir, srv: server, base } = e);
   admin = e.client('ak_t'); tool = e.client('tk_t'); testTool = e.client('tk_test_t');
 });
@@ -198,8 +198,29 @@ test('admin: quality levels pick a model; live needs a key', async () => {
   const r = (await write(testTool)).result;
   assert.deepEqual([r.content.special.length, r.content.care.length, r.content.tips.new.length, r.settings.tone], [3, 1, 2, 'expert']);
   assert.equal(r.quality.ok, true, JSON.stringify(r.quality.issues));
+  // the quality check: levels and word lists are AmplifAI's
+  await rejects(admin.request('PATCH', '/v1/admin/settings', { instructions: { checks: { sell: 'soms' } } }), 422, 'checks');
+  await rejects(admin.request('PATCH', '/v1/admin/settings', { instructions: { toneWarm: '  ' } }), 422, 'toneWarm');
+  s2 = await admin.request('PATCH', '/v1/admin/settings', { instructions: { sellWords: [...s2.instructions.sellWords, 'gratis'], checks: { long: 'off', sell: 'warn' } } });
+  assert.equal(s2.checks.sell.label, 'Verkopen');
+  const edited = structuredClone(r);
+  edited.content.story.text.nl = 'Nu gratis erbij. ' + 'Lang. '.repeat(80);
+  let q = await testTool.check(edited);
+  assert.deepEqual(q.issues.map(i => `${i.code}:${i.level}`), ['sell:warn']);
+  assert.equal(q.ok, true);
+  // only what differs from the built-in default is stored
+  const stored = (await e0.store.get('platform', 'main')).instructions;
+  assert.deepEqual(Object.keys(stored).sort(), ['checks', 'sellWords', 'specialCount', 'careCount', 'blockedDomains'].sort());
+  // the full instruction as Claude gets it, for chosen shop settings
+  await admin.request('PATCH', '/v1/admin/settings', { instructions: { tonePlayful: 'Very light. One wink at most.', pieceTips: '{tipCount} tips per level, each starting with a verb.' } });
+  const pv = await admin.request('GET', '/v1/admin/prompt?tone=playful&tipCount=2&languages=nl');
+  assert.ok(pv.writing.includes('- Tone: Very light. One wink at most.'));
+  assert.ok(pv.writing.includes('- tips: 2 tips per level, each starting with a verb.'));
+  assert.match(pv.research, /Aim for 18 to 30 facts/);
+  await rejects(tool.request('GET', '/v1/admin/prompt'), 403);
   // null puts back the built-in default
-  s2 = await admin.request('PATCH', '/v1/admin/settings', { instructions: { specialCount: null, careCount: null, blockedDomains: null }, defaults: { tipCount: null, tone: null } });
+  s2 = await admin.request('PATCH', '/v1/admin/settings', { instructions: { specialCount: null, careCount: null, blockedDomains: null, sellWords: null, checks: null, tonePlayful: null, pieceTips: null }, defaults: { tipCount: null, tone: null } });
+  assert.deepEqual((await e0.store.get('platform', 'main')).instructions, {});
   assert.deepEqual([s2.instructions.specialCount, s2.defaults.tipCount, s2.defaults.tone], [2, 3, 'warm']);
   assert.ok(s2.instructions.blockedDomains.includes('tweakers.net'));
   await rejects(admin.request('PUT', '/v1/admin/ai', { mode: 'live' }), 409);
