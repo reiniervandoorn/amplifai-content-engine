@@ -10,6 +10,7 @@ import { createEngine } from '../src/app.js';
 import { FileStore } from '../src/store.js';
 import { ContentEngine } from '../clients/js/amplifai-content.js';
 import * as mockAi from '../src/mock-ai.js';
+import { guideContentSchema } from '../contracts/tool-guide-schema.mjs';
 
 let dir, server, base, admin, tool, testTool, e0;
 
@@ -53,98 +54,141 @@ test('keys: the tool and its test key reach the content calls, only AmplifAI rea
 
 test('options: what the tool needs to build its settings screen, without models', async () => {
   const o = await testTool.options();
-  assert.equal(o.formatVersion, 2);
-  assert.deepEqual(o.settings.tone.options, ['warm', 'neutral', 'expert', 'playful']);
-  assert.deepEqual(o.settings.languages.default, ['nl', 'en']);
+  assert.equal(o.formatVersion, 3);
+  assert.equal(o.settings.toneOfVoice.type, 'text');
+  assert.deepEqual(o.settings.formality.options, ['auto', 'informal', 'formal']);
+  assert.deepEqual(o.settings.languages.default, ['nl']);
+  assert.deepEqual([o.settings.tipCount.max, o.settings.questionCount.max, o.settings.answerCount.min, o.settings.answerCount.max], [5, 3, 2, 5]);
   assert.deepEqual(o.qualities.map(q => q.id), ['basis', 'plus', 'premium']);
   assert.ok(o.qualities.every(q => q.estimatedCostEUR > 0));
-  assert.ok(o.pieces.some(p => p.path === 'question.options.N'));
+  assert.deepEqual(o.moments.map(m => m.id), ['ordered', 'in_transit', 'delivered']);
+  assert.ok(o.pieces.some(p => p.path === 'ordered.questions.N.answers.M'));
   assert.ok(!JSON.stringify(o).includes('claude-') && !('maxSearches' in o.settings));
 });
 
-test('write: the content comes back whole, in every language, with sources and a passed quality check', async () => {
-  const job = await write(testTool, { settings: { languages: ['nl', 'en', 'de'], formality: 'formal', tipCount: 2, answerCount: 3 }, reference: 'order-42' });
+const MOMENTS = ['ordered', 'in_transit', 'delivered'];
+const ID = /^[0-9a-f-]{36}$/;
+
+test('write: three guides per language, exactly in the tool\'s format, with sources and a passed quality check', async () => {
+  const job = await write(testTool, {
+    product: { name: 'Sencha Kyoto', sku: 'TEA-001', description: 'Japanse groene thee uit Kyoto. Zet met water van 70 graden, twee minuten. Zakje van 100 gram.' },
+    shop: { name: 'Theehuis', url: 'theehuis.test' },
+    brand: { story: 'Sinds 2009 halen wij thee rechtstreeks bij boeren.', audience: 'Thee-liefhebbers', usps: ['Rechtstreeks van de boer'], expertise: [{ title: 'Water', body: 'Zacht water geeft heldere thee.' }, { body: 'Uitgezet advies', enabled: false }] },
+    settings: { languages: ['nl', 'en', 'de'], toneOfVoice: 'Write in a professional, polite and factual tone. Address the customer formally.', tipCount: 4, questionCount: 3, answerCount: 5 },
+    reference: 'product-42',
+  });
   assert.equal(job.status, 'done');
-  assert.equal(job.reference, 'order-42');
-  const r = job.result, c = r.content;
-  assert.equal(r.formatVersion, 2);
+  assert.equal(job.reference, 'product-42');
+  const r = job.result;
+  assert.equal(r.formatVersion, 3);
   assert.equal(r.test, true);
   assert.equal(r.costEUR, 0);
   assert.deepEqual(r.languages, ['nl', 'en', 'de']);
-  assert.equal(r.settings.formality, 'formal');
+  assert.equal(r.settings.formality, 'formal'); // "auto" read it from the tone of voice
   assert.ok(!('model' in r.settings));
-  assert.equal(r.product.name, 'Velo Aero Fietshelm');
-  assert.deepEqual(r.shop, { name: 'Fietsshop Jansen', url: 'https://fietsshop.test/' });
-  assert.deepEqual(Object.keys(c), ['shortName', 'intro', 'story', 'special', 'expect', 'fact', 'care', 'experience', 'question', 'tips', 'whileYouWait', 'firstMinutes']);
-  assert.ok(['nl', 'en', 'de'].every(l => typeof c.story.text[l] === 'string' && c.story.text[l]));
-  assert.match(c.intro.title.nl, /^Uw nieuwe/);
-  assert.equal(c.tips.new.length, 2);
-  assert.equal(c.question.options.length, 3);
-  assert.ok(c.question.options.every(o => o.key && o.tip.title.nl && o.result.lines.length === 2));
-  // every cited fact is in the sources, with where it came from
-  const ids = new Set(r.sources.map(s => s.id));
-  assert.ok(c.story.src.every(id => ids.has(id)) && r.sources.some(s => s.used));
-  assert.ok(r.sources.every(s => s.url && s.claim));
+  assert.deepEqual([r.product.name, r.product.url, r.product.sku], ['Sencha Kyoto', null, 'TEA-001']);
+  assert.deepEqual(r.shop, { name: 'Theehuis', url: 'https://theehuis.test/', audience: 'Thee-liefhebbers' });
+  assert.deepEqual(Object.keys(r.guides), ['nl', 'en', 'de']);
+  for (const l of r.languages) for (const m of MOMENTS) {
+    const g = r.guides[l][m];
+    // the tool saves this as it is
+    const ok = guideContentSchema.safeParse(g);
+    assert.ok(ok.success, `${l}.${m}: ${JSON.stringify(ok.error?.issues?.[0])}`);
+    assert.deepEqual([g.tips.length, g.questions.length], [4, 3]);
+    assert.ok(g.questions.every(q => ID.test(q.id) && q.answers.length === 5 && q.answers.every(a => ID.test(a.id))));
+  }
+  // the same question has the same id in every language, and branching points at real later questions
+  assert.equal(r.guides.nl.ordered.questions[1].id, r.guides.de.ordered.questions[1].id);
+  assert.match(r.guides.nl.ordered.intro, /\bu\b/);
+  // sources: the shop's own knowledge (s…), and facts from the product text without a page
+  const shop = r.sources.filter(s => s.id.startsWith('s'));
+  assert.deepEqual(shop.map(s => s.claim), ['Sinds 2009 halen wij thee rechtstreeks bij boeren.', 'Rechtstreeks van de boer', 'Water: Zacht water geeft heldere thee.']);
+  assert.ok(shop.every(s => s.category === 'shop' && s.url === 'https://theehuis.test/'));
+  assert.ok(r.sources.filter(s => s.id.startsWith('f')).every(s => s.url === null && s.title === 'Productgegevens van de shop'));
+  const cited = Object.values(r.citations).flat();
+  assert.ok(cited.length && cited.every(id => r.sources.some(s => s.id === id && s.used)));
+  assert.ok(r.citations['ordered.intro'].includes('s1'));
   assert.equal(r.quality.ok, true, JSON.stringify(r.quality.issues));
-  // one language, plain strings
+  // one language
   const nl = await testTool.job(job.id, 'nl');
-  assert.equal(typeof nl.result.content.story.text, 'string');
+  assert.deepEqual(Object.keys(nl.result.guides), ['nl']);
   await rejects(testTool.job(job.id, 'fr'), 400);
 });
 
 test('write: bad input is refused with the field, before anything starts', async () => {
-  await rejects(testTool.write({ product: { name: 'Geen url' } }), 422, 'product.url');
+  await rejects(testTool.write({ product: { name: 'Alleen een naam' } }), 422, 'product.description');
+  await rejects(testTool.write({ product: { description: 'Alleen tekst' } }), 422, 'product.name');
   await rejects(testTool.write({ product: helm({ url: 'ftp://x' }) }), 422, 'product.url');
-  await rejects(testTool.write({ product: helm(), settings: { tone: 'boos' } }), 422, 'tone');
-  await rejects(testTool.write({ product: helm(), settings: { tipCount: 9 } }), 422, 'tipCount');
+  await rejects(testTool.write({ product: helm(), settings: { formality: 'boos' } }), 422, 'formality');
+  await rejects(testTool.write({ product: helm(), settings: { tipCount: 6 } }), 422, 'tipCount');
+  await rejects(testTool.write({ product: helm(), settings: { questionCount: 4 } }), 422, 'questionCount');
+  await rejects(testTool.write({ product: helm(), settings: { answerCount: 1 } }), 422, 'answerCount');
   await rejects(testTool.write({ product: helm(), settings: { maxSearches: 15 } }), 422, 'maxSearches');
+  await rejects(testTool.write({ product: helm(), brand: 'x' }), 422, 'brand');
   await rejects(testTool.write({ product: helm(), callbackUrl: 'niet-een-adres' }), 422, 'callbackUrl');
   await rejects(testTool.request('POST', '/v1/content', [1, 2]), 400);
   await rejects(testTool.job('job_bestaatniet'), 404);
 });
 
-test('revise: one piece changes with the shop\'s wish, the rest stays, answer keys are kept', async () => {
-  const first = (await write(testTool)).result;
-  let job = await testTool.waitFor(await testTool.revise(first, 'story', 'Noem dat Velo uit Utrecht komt', { wait: true }));
-  const r = job.result;
+test('revise: one piece changes with the shop\'s wish; ids, branching and the rest stay', async () => {
+  const first = (await write(testTool, { settings: { languages: ['nl', 'en'] } })).result;
+  const g0 = first.guides.nl.ordered;
+  let job = await testTool.waitFor(await testTool.revise(first, 'ordered.intro', 'Noem dat ze uit Utrecht komen', { wait: true }));
+  let r = job.result;
   assert.equal(job.kind, 'revise');
-  assert.deepEqual(r.revised, { piece: 'story', wish: 'Noem dat Velo uit Utrecht komt' });
-  assert.notDeepEqual(r.content.story, first.content.story);
-  assert.deepEqual(r.content.tips, first.content.tips);
-  assert.deepEqual(r.content.intro, first.content.intro);
+  assert.deepEqual(r.revised, { piece: 'ordered.intro', wish: 'Noem dat ze uit Utrecht komen' });
+  assert.notEqual(r.guides.nl.ordered.intro, g0.intro);
+  assert.deepEqual(r.guides.nl.ordered.questions, g0.questions);
+  assert.deepEqual(r.guides.nl.delivered, first.guides.nl.delivered);
   // the wish is the shop's word about its own product, and may be cited as such
-  const w = r.sources.find(s => s.id === 'w1');
-  assert.equal(w.claim, 'Noem dat Velo uit Utrecht komt');
-  assert.ok(r.content.story.src.includes('w1'));
-  // a second revision builds on the first: its wish gets the next id, and earlier facts stay available
-  job = await testTool.waitFor(await testTool.revise(r, 'question', '', { wait: true }));
-  assert.deepEqual(job.result.content.question.options.map(o => o.key), first.content.question.options.map(o => o.key));
+  assert.equal(r.sources.find(s => s.id === 'w1').claim, 'Noem dat ze uit Utrecht komen');
+  assert.ok(r.citations['ordered.intro'].includes('w1'));
+  // a question: same id, same answer ids, same branching
+  job = await testTool.waitFor(await testTool.revise(r, 'ordered.questions.0', 'Vraag naar het moment van de dag', { wait: true }));
+  const q0 = g0.questions[0], q1 = job.result.guides.nl.ordered.questions[0];
+  assert.notEqual(q1.question, q0.question);
+  assert.equal(q1.id, q0.id);
+  assert.deepEqual(q1.answers.map(a => [a.id, a.next]), q0.answers.map(a => [a.id, a.next]));
   assert.ok(job.result.sources.some(s => s.id === 'w1'));
-  job = await testTool.waitFor(await testTool.revise(job.result, 'question.options.1', 'Korter', { wait: true }));
-  assert.equal(job.result.content.question.options[1].key, first.content.question.options[1].key);
-  // the tone or form of address may change on a revision; the languages may not
-  job = await testTool.waitFor(await testTool.revise(first, 'intro', '', { wait: true, settings: { formality: 'formal' } }));
-  assert.match(job.result.content.intro.title.nl, /^Uw/);
-  await rejects(testTool.revise(first, 'intro', '', { settings: { languages: ['nl'] } }), 422, 'settings.languages');
-  await rejects(testTool.revise(first, 'tips.new.9', 'x'), 422, 'piece');
-  await rejects(testTool.revise(first, 'sources', 'x'), 422, 'piece');
-  await rejects(testTool.revise({ ...first, formatVersion: 1 }, 'story', 'x'), 422, 'content');
-  await rejects(testTool.revise({ ...first, content: { ...first.content, story: 'kapot' } }, 'story', 'x'), 422, 'content');
+  // one answer, one tip, a whole moment
+  job = await testTool.waitFor(await testTool.revise(job.result, 'ordered.questions.0.answers.1', 'Korter', { wait: true }));
+  assert.equal(job.result.guides.nl.ordered.questions[0].answers[1].id, q0.answers[1].id);
+  job = await testTool.waitFor(await testTool.revise(job.result, 'delivered.tips.2', '', { wait: true }));
+  assert.notEqual(job.result.guides.nl.delivered.tips[2], first.guides.nl.delivered.tips[2]);
+  job = await testTool.waitFor(await testTool.revise(job.result, 'in_transit', '', { wait: true }));
+  for (const l of ['nl', 'en']) for (const m of MOMENTS) assert.ok(guideContentSchema.safeParse(job.result.guides[l][m]).success);
+  assert.deepEqual(job.result.guides.nl.in_transit.questions.map(q => q.id), first.guides.nl.in_transit.questions.map(q => q.id));
+  // a text the shop edited in the tool is kept when another piece is revised
+  const edited = structuredClone(job.result);
+  edited.guides.nl.ordered.tips[0] = 'Mijn eigen tip.';
+  job = await testTool.waitFor(await testTool.revise(edited, 'ordered.tips.1', '', { wait: true }));
+  assert.equal(job.result.guides.nl.ordered.tips[0], 'Mijn eigen tip.');
+  // the form of address may change on a revision; the languages may not
+  job = await testTool.waitFor(await testTool.revise(first, 'ordered.intro', '', { wait: true, settings: { formality: 'formal' } }));
+  assert.equal(job.result.settings.formality, 'formal');
+  await rejects(testTool.revise(first, 'ordered.intro', '', { settings: { languages: ['nl'] } }), 422, 'settings.languages');
+  await rejects(testTool.revise(first, 'ordered.tips.9', 'x'), 422, 'piece');
+  await rejects(testTool.revise(first, 'story', 'x'), 422, 'piece');
+  await rejects(testTool.revise({ ...first, formatVersion: 2 }, 'ordered.intro', 'x'), 422, 'content');
+  const broken = structuredClone(first);
+  broken.guides.en.ordered.tips.pop();
+  await rejects(testTool.revise(broken, 'ordered.intro', 'x'), 422, 'content');
 });
 
-test('check: the AmplifAI rules, held against text the shop edited by hand', async () => {
+test('check: the AmplifAI rules and the tool\'s limits, held against guides the shop edited', async () => {
   const r = (await write(testTool)).result;
   assert.equal((await testTool.check(r)).ok, true);
-  const edited = structuredClone(r);
-  edited.content.tips.new[0].text.nl = 'Koop er meteen een tweede bij met 10% korting!';
-  edited.content.story.text.nl = 'Sinds 1987 maakt Velo helmen. Wilt u er een?';
-  edited.content.story.src = [];
+  const edited = structuredClone(r), g = edited.guides.nl;
+  g.delivered.tips[0] = 'Koop er meteen een tweede bij met 10% korting!';
+  g.ordered.intro = 'Sinds 1987 maakt Velo helmen. Wilt u er een?';
+  delete edited.citations['ordered.intro'];
+  g.in_transit.questions[0].answers[0].label = 'x'.repeat(250);
+  g.ordered.questions[1].answers[0].next = g.ordered.questions[0].id;
   const q = await testTool.check(edited);
   assert.equal(q.ok, false);
   const codes = q.issues.map(i => `${i.piece}:${i.code}`);
-  assert.ok(codes.includes('tips.new.0:sell'), codes.join());
-  assert.ok(codes.includes('story:source'), codes.join());
-  assert.ok(codes.includes('story:form'), codes.join());
+  for (const want of ['delivered.tips.0:sell', 'ordered.intro:source', 'ordered.intro:form', 'in_transit.questions.0.answers.0:fit', 'ordered.questions.1.answers.0:flow'])
+    assert.ok(codes.includes(want), `${want} in ${codes.join()}`);
 });
 
 test('jobs: without wait the answer comes at once; a callback brings the result, signed', async () => {
@@ -159,7 +203,7 @@ test('jobs: without wait the answer comes at once; a callback brings the result,
     assert.equal(heard.length, 1);
     const body = JSON.parse(heard[0].body);
     assert.equal(body.event, 'content.done');
-    assert.deepEqual(body.job.result.content, done.result.content);
+    assert.deepEqual(body.job.result.guides, done.result.guides);
     const secret = (await admin.request('GET', '/v1/admin/status')).keys.callbackSecret;
     assert.equal(heard[0].sig, 'sha256=' + crypto.createHmac('sha256', secret).update(heard[0].body).digest('hex'));
   } finally { hook.close() }
@@ -177,52 +221,54 @@ test('jobs survive a restart as stored results, and running ones are marked fail
   } finally { await e.close() }
 });
 
-test('admin: quality levels pick a model; live needs a key', async () => {
+test('admin: quality levels, instructions, the quality check and the defaults for shops', async () => {
   await rejects(admin.request('PATCH', '/v1/admin/settings', { levels: { basis: { model: 'gpt-9' } } }), 422);
   const st = await admin.request('PATCH', '/v1/admin/settings', { levels: { basis: { model: 'claude-haiku-5-5' } } });
   assert.equal(st.levels.find(l => l.id === 'basis').model, 'claude-haiku-5-5');
   assert.ok((await testTool.options()).qualities[0].estimatedCostEUR < 0.1);
-  // general instructions and the defaults for shops: checked, and used for what is written next
   await rejects(admin.request('PATCH', '/v1/admin/settings', { instructions: { factsMin: 50, factsMax: 20 } }), 422, 'factsMin');
-  await rejects(admin.request('PATCH', '/v1/admin/settings', { instructions: { specialCount: 9 } }), 422, 'specialCount');
   await rejects(admin.request('PATCH', '/v1/admin/settings', { instructions: { onbekend: 1 } }), 422, 'onbekend');
   await rejects(admin.request('PATCH', '/v1/admin/settings', { instructions: { rules: [] } }), 422, 'rules');
-  await rejects(admin.request('PATCH', '/v1/admin/settings', { defaults: { tone: 'boos' } }), 422, 'tone');
-  await rejects(tool.request('PATCH', '/v1/admin/settings', { instructions: { specialCount: 3 } }), 403);
-  let s2 = await admin.request('PATCH', '/v1/admin/settings', { instructions: { specialCount: 3, careCount: 1, blockedDomains: ['https://www.Reviews.test/page'] }, defaults: { tipCount: 2, tone: 'expert' } });
-  assert.deepEqual([s2.instructions.specialCount, s2.instructions.careCount, s2.instructions.blockedDomains[0]], [3, 1, 'www.reviews.test']);
-  assert.equal(s2.instructionFields.factsMin.default, 18);
-  assert.equal((await testTool.options()).settings.tone.default, 'expert');
-  // the tool cannot send AmplifAI's instructions itself
-  await rejects(testTool.write({ product: helm(), settings: { specialCount: 4 } }), 422, 'specialCount');
+  await rejects(admin.request('PATCH', '/v1/admin/settings', { instructions: { momentOrdered: '  ' } }), 422, 'momentOrdered');
+  await rejects(admin.request('PATCH', '/v1/admin/settings', { instructions: { checks: { sell: 'soms' } } }), 422, 'checks');
+  await rejects(admin.request('PATCH', '/v1/admin/settings', { defaults: { tipCount: 9 } }), 422, 'tipCount');
+  await rejects(tool.request('PATCH', '/v1/admin/settings', { instructions: { factsMin: 10 } }), 403);
+  // defaults for shops apply to what the tool leaves out; the tool cannot send AmplifAI's instructions
+  let s2 = await admin.request('PATCH', '/v1/admin/settings', { instructions: { blockedDomains: ['https://www.Reviews.test/page'] }, defaults: { tipCount: 2, questionCount: 1, formality: 'formal' } });
+  assert.equal(s2.instructions.blockedDomains[0], 'www.reviews.test');
+  assert.equal((await testTool.options()).settings.tipCount.default, 2);
+  await rejects(testTool.write({ product: helm(), settings: { factsMin: 4 } }), 422, 'factsMin');
   const r = (await write(testTool)).result;
-  assert.deepEqual([r.content.special.length, r.content.care.length, r.content.tips.new.length, r.settings.tone], [3, 1, 2, 'expert']);
+  assert.deepEqual([r.guides.nl.ordered.tips.length, r.guides.nl.delivered.questions.length, r.settings.formality], [2, 1, 'formal']);
   assert.equal(r.quality.ok, true, JSON.stringify(r.quality.issues));
   // the quality check: levels and word lists are AmplifAI's
-  await rejects(admin.request('PATCH', '/v1/admin/settings', { instructions: { checks: { sell: 'soms' } } }), 422, 'checks');
-  await rejects(admin.request('PATCH', '/v1/admin/settings', { instructions: { toneWarm: '  ' } }), 422, 'toneWarm');
   s2 = await admin.request('PATCH', '/v1/admin/settings', { instructions: { sellWords: [...s2.instructions.sellWords, 'gratis'], checks: { long: 'off', sell: 'warn' } } });
-  assert.equal(s2.checks.sell.label, 'Verkopen');
+  assert.equal(s2.checks.fit.label, 'Past niet in de tool');
   const edited = structuredClone(r);
-  edited.content.story.text.nl = 'Nu gratis erbij. ' + 'Lang. '.repeat(80);
-  let q = await testTool.check(edited);
+  edited.guides.nl.ordered.intro = 'Nu gratis erbij. ' + 'Lang. '.repeat(80);
+  const q = await testTool.check(edited);
   assert.deepEqual(q.issues.map(i => `${i.code}:${i.level}`), ['sell:warn']);
   assert.equal(q.ok, true);
   // only what differs from the built-in default is stored
-  const stored = (await e0.store.get('platform', 'main')).instructions;
-  assert.deepEqual(Object.keys(stored).sort(), ['checks', 'sellWords', 'specialCount', 'careCount', 'blockedDomains'].sort());
+  assert.deepEqual(Object.keys((await e0.store.get('platform', 'main')).instructions).sort(), ['blockedDomains', 'checks', 'sellWords']);
   // the full instruction as Claude gets it, for chosen shop settings
-  await admin.request('PATCH', '/v1/admin/settings', { instructions: { tonePlayful: 'Very light. One wink at most.', pieceTips: '{tipCount} tips per level, each starting with a verb.' } });
-  const pv = await admin.request('GET', '/v1/admin/prompt?tone=playful&tipCount=2&languages=nl');
-  assert.ok(pv.writing.includes('- Tone: Very light. One wink at most.'));
-  assert.ok(pv.writing.includes('- tips: 2 tips per level, each starting with a verb.'));
+  await admin.request('PATCH', '/v1/admin/settings', { instructions: { momentDelivered: 'Just delivered. Only the first five minutes.', pieceTips: '{tipCount} tips, each starting with a verb.' } });
+  const pv = await admin.request('GET', '/v1/admin/prompt?' + new URLSearchParams({ toneOfVoice: 'Calm. Address the customer formally.', tipCount: 2, languages: 'nl' }));
+  assert.ok(pv.writing.includes('- delivered: Just delivered. Only the first five minutes.'));
+  assert.ok(pv.writing.includes('- tips: 2 tips, each starting with a verb.'));
+  assert.ok(pv.writing.includes('Calm. Address the customer formally.') && pv.writing.includes('"u" and "uw"'));
+  // the house style always applies, the shop's tone of voice comes on top
+  assert.ok(pv.writing.indexOf('- House style (AmplifAI, always): Calm and clear') < pv.writing.indexOf('- Tone of voice (the shop'));
   assert.match(pv.research, /Aim for 18 to 30 facts/);
   await rejects(tool.request('GET', '/v1/admin/prompt'), 403);
+  // instructions saved by an older version are ignored, not an error
+  await e0.store.put('platform', 'main', { ...(await e0.store.get('platform', 'main')), instructions: { ...(await e0.store.get('platform', 'main')).instructions, toneWarm: 'oud', checks: { sell: 'warn', headline: 'off' } } });
+  s2 = await admin.request('GET', '/v1/admin/status');
+  assert.ok(!('toneWarm' in s2.instructions) && !('headline' in s2.instructions.checks) && s2.instructions.checks.sell === 'warn');
   // null puts back the built-in default
-  s2 = await admin.request('PATCH', '/v1/admin/settings', { instructions: { specialCount: null, careCount: null, blockedDomains: null, sellWords: null, checks: null, tonePlayful: null, pieceTips: null }, defaults: { tipCount: null, tone: null } });
+  s2 = await admin.request('PATCH', '/v1/admin/settings', { instructions: { blockedDomains: null, sellWords: null, checks: null, momentDelivered: null, pieceTips: null }, defaults: { tipCount: null, questionCount: null, formality: null } });
   assert.deepEqual((await e0.store.get('platform', 'main')).instructions, {});
-  assert.deepEqual([s2.instructions.specialCount, s2.defaults.tipCount, s2.defaults.tone], [2, 3, 'warm']);
-  assert.ok(s2.instructions.blockedDomains.includes('tweakers.net'));
+  assert.deepEqual([s2.defaults.tipCount, s2.defaults.formality], [3, 'auto']);
   await rejects(admin.request('PUT', '/v1/admin/ai', { mode: 'live' }), 409);
   await rejects(admin.request('PUT', '/v1/admin/ai', { key: 'geen-sleutel' }), 422);
 });
@@ -309,10 +355,10 @@ test('live writing: Claude answers in JSON, a wrong answer is sent back once, re
       if (isResearch) { calls.research++; text = '```json\n' + JSON.stringify(research) + '\n```' }
       else {
         calls.write++;
-        const settings = { languages: ['nl', 'en'], tone: 'warm', formality: 'informal', tipCount: 3, answerCount: 4, expectCount: 2, emailItems: 3 };
+        const settings = { languages: ['nl'], formality: 'informal', tipCount: 3, questionCount: 2, answerCount: 3 };
         const { content } = await mockAi.write({ page, research: { product: research.product, facts: [{ id: 'f1', category: 'brand', claim: 'x', url: page.url }] }, settings });
-        content.special[0].icon = 'raket';
-        if (calls.write === 1) delete content.care;
+        content.ordered.questions[1].answers[0].next = 0; // points back: the engine turns it into "next"
+        if (calls.write === 1) delete content.delivered;
         text = 'Here it is.\n```json\n' + JSON.stringify(content) + '\n```';
       }
       res.writeHead(200, { 'content-type': 'text/event-stream' });
@@ -335,8 +381,9 @@ test('live writing: Claude answers in JSON, a wrong answer is sent back once, re
     let j = await live.waitFor(await live.write({ product: helm(), wait: true }), { interval: 50 });
     assert.equal(j.result.test, false);
     assert.deepEqual(calls, { research: 1, write: 2 });
-    assert.equal(j.result.content.care.length, 3);
-    assert.equal(j.result.content.special[0].icon, 'tag');
+    for (const m of MOMENTS) assert.ok(guideContentSchema.safeParse(j.result.guides.nl[m]).success, m);
+    assert.equal(j.result.guides.nl.ordered.questions[1].answers[0].next, 'next');
+    assert.equal(j.result.guides.nl.ordered.questions[0].answers[1].next, 'end');
     assert.ok(j.result.costEUR > 0);
     assert.equal(j.result.sources[0].claim, 'Velo was founded in 1990.');
     // AmplifAI's instructions from the admin page go into the prompts
@@ -344,7 +391,7 @@ test('live writing: Claude answers in JSON, a wrong answer is sent back once, re
     assert.ok(prompts[1].includes('- Rule one.\n- Rule two.') && prompts[1].includes('AmplifAI adds: Noem nooit de prijs.'));
     assert.ok(!prompts[1].includes('No independent tests'));
     // the shop picks another tone: the research is reused, only the writing is paid again
-    j = await live.waitFor(await live.write({ product: helm(), settings: { tone: 'expert' }, wait: true }), { interval: 50 });
+    j = await live.waitFor(await live.write({ product: helm(), settings: { toneOfVoice: 'Expert and precise.' }, wait: true }), { interval: 50 });
     assert.equal(j.status, 'done');
     assert.equal(calls.research, 1);
     assert.ok(j.progress.some(p => /eerder onderzoek/.test(p.msg)));

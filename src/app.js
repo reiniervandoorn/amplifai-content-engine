@@ -11,34 +11,28 @@ import Anthropic from '@anthropic-ai/sdk';
 import { product as readProduct, normalizeUrl } from './crawl.js';
 import * as realAi from './ai.js';
 import * as mockAi from './mock-ai.js';
-import { schemas, kindOf, getPath, setPath, ICONS } from './ai.js';
-import { LANGUAGES, INSTRUCTIONS, defaultPlatform, checkBudget, checkLevels, checkInstructions, checkDefaults, resolve, publicSettings, describe, SettingsError } from './settings.js';
+import { schemas, kindOf, getPath, MOMENTS } from './ai.js';
+import { contentWithIds, forClaude, placePiece, toTool, fromTool } from './guides.js';
+import { LANGUAGES, INSTRUCTIONS, FIELDS, defaultPlatform, checkBudget, checkLevels, checkInstructions, checkDefaults, resolve, publicSettings, describe, SettingsError } from './settings.js';
 import { MODELS, LEVEL_IDS, EUR_PER_USD, usd, eur, perProduct } from './pricing.js';
 import { checkContent, repairWish, CHECKS } from './quality.js';
 import { identify, HttpError, newKey } from './auth.js';
-import { flat } from './formats.js';
+import { oneLanguage } from './formats.js';
 import { Jobs } from './jobs.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const now = () => new Date().toISOString();
-export const FORMAT_VERSION = 2;
+export const FORMAT_VERSION = 3;
 
-// The pieces of content, for the tool's documentation and screens. The path is what a revision asks for.
+// The three moments and the pieces a revision can ask for, for the tool's documentation and screens.
 export const PIECES = [
-  ['shortName', 'Korte productnaam'],
-  ['intro', 'Titel, kopregel en een uitnodiging om de gids te openen'],
-  ['story', 'Het merkverhaal'],
-  ['special.N', 'Wat dit product bijzonder maakt'],
-  ['expect.N', 'Wat normaal is in de eerste dagen'],
-  ['fact', 'Eén opvallend feit'],
-  ['care.N', 'Onderhoud: schoonmaken, bewaren, levensduur'],
-  ['experience', 'De ervaringsvraag, met een tekst per niveau'],
-  ['question', 'De vraag waarvan het antwoord de tips verandert'],
-  ['question.options.N', 'Eén antwoord: het resultaat en de tip die erbij hoort'],
-  ['tips.new.N / tips.regular.N / tips.expert.N', 'Tips per ervaringsniveau'],
-  ['whileYouWait / whileYouWait.items.N', 'Voor de verzendmail: wat je alvast kunt doen'],
-  ['firstMinutes / firstMinutes.items.N', 'Voor de bezorgmail: de eerste minuten'],
+  ['ordered | in_transit | delivered', 'Een hele gids voor dat moment'],
+  ['ordered.intro', 'De intro'],
+  ['ordered.tips.N', 'Eén tip'],
+  ['ordered.questions.N', 'Eén vraag met zijn antwoorden (id\'s blijven)'],
+  ['ordered.questions.N.answers.M', 'Eén antwoord en zijn reactie (id en next blijven)'],
 ].map(([path, label]) => ({ path, label }));
+const MOMENT_LABELS = { ordered: 'Besteld: direct na het afrekenen', in_transit: 'Onderweg: terwijl het pakket onderweg is', delivered: 'Bezorgd: de eerste vijf minuten' };
 
 // Test mode swaps Claude for fixed templates (mock-ai.js): every call works, without a key or cost.
 // AmplifAI switches between test and live in the admin page; aiMode only sets where a new install starts.
@@ -48,7 +42,13 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
   const platform = async () => {
     const d = defaultPlatform(), s = await store.get('platform', 'main');
     return { ...d, ...s, mode: s?.mode || startMode, levels: { ...d.levels, ...(s?.levels || {}) }, budget: { ...d.budget, ...(s?.budget || {}) },
-      instructions: { ...d.instructions, ...(s?.instructions || {}) }, defaults: { ...d.defaults, ...(s?.defaults || {}) } };
+      instructions: known({ ...d.instructions, ...(s?.instructions || {}) }, INSTRUCTIONS), defaults: known({ ...d.defaults, ...(s?.defaults || {}) }, FIELDS) };
+  };
+  // settings saved by an older version may name fields or checks that no longer exist
+  const known = (obj, table) => {
+    const out = Object.fromEntries(Object.entries(obj).filter(([k]) => k in table));
+    if (out.checks) out.checks = { ...table.checks?.default, ...Object.fromEntries(Object.entries(out.checks).filter(([k]) => k in (table.checks?.default || {}))) };
+    return out;
   };
   const savePlatform = async patch => { const pf = { ...((await store.get('platform', 'main')) || {}), ...patch, updatedAt: now() }; await store.put('platform', 'main', pf); return pf };
   const mode = async () => (await platform()).mode;
@@ -161,15 +161,15 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
   const str = (v, max) => v == null || v === '' ? null : String(v).slice(0, max);
   const list = (v, max, n) => Array.isArray(v) ? v.map(x => String(x).slice(0, max)).filter(Boolean).slice(0, n) : [];
   function productFrom(p) {
-    if (!p || typeof p !== 'object' || Array.isArray(p)) throw new SettingsError('product moet een object zijn, met minstens url', 'product');
-    if (!p.url) throw new SettingsError('product.url is verplicht: de pagina van het product in de webshop', 'product.url');
-    let url;
-    try { if (/^[a-z][a-z0-9+.-]*:/i.test(p.url) && !/^https?:/i.test(p.url)) throw 0; url = normalizeUrl(p.url).href } catch { throw new SettingsError('product.url: een http(s)-adres', 'product.url') }
+    if (!p || typeof p !== 'object' || Array.isArray(p)) throw new SettingsError('product moet een object zijn', 'product');
+    let url = null;
+    if (p.url) try { if (/^[a-z][a-z0-9+.-]*:/i.test(p.url) && !/^https?:/i.test(p.url)) throw 0; url = normalizeUrl(p.url).href } catch { throw new SettingsError('product.url: een http(s)-adres', 'product.url') }
+    if (!url && !(p.name && p.description)) throw new SettingsError('product: stuur name en description, of een url waar de engine ze kan lezen', p.name ? 'product.description' : 'product.name');
     return { url, name: str(p.name, 300), brand: str(p.brand, 120), category: str(p.category, 120), price: str(p.price, 40), image: str(p.image, 1000),
-      description: str(p.description, 8000) || '', properties: list(p.specs, 300, 40), variants: list(p.variants, 120, 30), sku: str(p.sku, 80), gtin: str(p.gtin, 40) };
+      description: str(p.description, 20000) || '', properties: list(p.specs, 300, 40), variants: list(p.variants, 120, 30), sku: str(p.sku, 100), gtin: str(p.gtin, 40) };
   }
   async function fillFromPage(page, say) {
-    if (!readPages || (page.name && page.description.length >= 200)) return page;
+    if (!readPages || !page.url || (page.name && page.description.length >= 200)) return page;
     say('Productpagina lezen…');
     try {
       const full = await readProduct(page.url);
@@ -181,6 +181,21 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
       if (!page.name) throw new HttpError(422, `De productpagina is niet te lezen (${e.message}). Stuur product.name en product.description mee.`);
       return page;
     }
+  }
+  // What the shop itself knows (the tool's brand knowledge): its story, audience, selling points and the advice
+  // it gives again and again. They become facts with category "shop" (ids s1, s2, …), cited as the shop's word.
+  function brandFrom(b, shop) {
+    if (b == null) return { facts: [], audience: null };
+    if (typeof b !== 'object' || Array.isArray(b)) throw new SettingsError('brand moet een object zijn', 'brand');
+    const sources = Array.isArray(b.sources) ? b.sources : [];
+    const urlOf = id => { const x = sources.find(s => s?.id === id); return x?.url ? checkUrl(x.url, 'brand.sources') : null };
+    const facts = [];
+    const add = (claim, title, url) => { if (claim) facts.push({ id: 's' + (facts.length + 1), category: 'shop', claim: String(claim).slice(0, 1500), url: url || shop.url || null, title }) };
+    add(b.story, 'Verhaal van de shop');
+    for (const u of list(b.usps, 160, 5)) add(u, 'Wat de shop anders maakt');
+    for (const e of (Array.isArray(b.expertise) ? b.expertise : []).filter(e => e && e.enabled !== false).slice(0, 50))
+      add(e.title ? `${e.title}: ${e.body}` : e.body, 'Advies van de shop', e.url ? checkUrl(e.url, 'brand.expertise') : urlOf(e.sourceId));
+    return { facts, audience: str(b.audience, 500) };
   }
   // Research is the costly half and does not depend on tone, form of address or languages, so in live mode
   // it is kept for keepDays and reused: a new tone, or a second try after a failure, only pays for writing.
@@ -215,7 +230,8 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
     return facts.filter(f => !f.id.startsWith('w') || u.has(f.id)).map(({ id, category, claim, url, title }) => ({ id, category, claim, url, title, used: u.has(id) }));
   };
 
-  // Live mode: rewrite the pieces that break a rule, once each.
+  // Live mode: rewrite the pieces that break a rule, once each. Claude reads the guides with question indices;
+  // placePiece puts the new piece back with its ids.
   async function repair(AI, content, base, settings, say) {
     const qa = checkContent(content, settings);
     if (AI === mockAi || !qa.errors) return qa;
@@ -223,21 +239,24 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
     for (const i of qa.issues) if (i.level === 'error' && piece[kindOf(i.piece)] && getPath(content, i.piece) != null) byPiece.set(i.piece, [...(byPiece.get(i.piece) || []), i]);
     for (const [path, issues] of [...byPiece].slice(0, 6)) {
       say('Kwaliteitscheck: ' + issues[0].message.toLowerCase() + '…');
-      try { setPath(content, path, (await AI.revise({ ...base, settings, rules: settings.rules, current: content, path, wish: repairWish(issues) })).piece) }
+      try { placePiece(content, path, kindOf(path), (await AI.revise({ ...base, settings, rules: settings.rules, current: forClaude(content), path, wish: repairWish(issues) })).piece) }
       catch (e) { if (e.code === 'budget') throw e }
     }
     return checkContent(content, settings);
   }
 
+  // facts without a page: the product text the tool sent
+  const showUrl = f => f.url === 'shop:product' ? { url: null, title: f.title || 'Productgegevens van de shop' } : { url: f.url || null, title: f.title || null };
   const resultOf = ({ test, settings, page, shop, research, facts, content, quality, costUsd, extra }) => ({
     formatVersion: FORMAT_VERSION,
     test,
     languages: settings.languages,
     settings: publicSettings(settings),
-    product: { url: page.url, name: page.name, brand: page.brand || null, category: page.category || null, price: page.price || null, image: page.image || null, variants: page.variants || [] },
+    product: { url: page.url || null, name: page.name, brand: page.brand || null, category: page.category || null, price: page.price || null, image: page.image || null, variants: page.variants || [], sku: page.sku || null },
     shop,
-    content,
-    sources: sourcesFor(facts, content),
+    // per language, per moment: exactly the tool's guide format; citations: the sources per text
+    ...toTool(content, settings.languages),
+    sources: sourcesFor(facts, content).map(f => ({ ...f, ...showUrl(f) })),
     quality,
     costEUR: eur(costUsd),
     // what the engine needs again for a revision; the tool sends it back unchanged
@@ -266,22 +285,25 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
       settings: describe(pf.defaults),
       languages: LANGUAGES,
       qualities: LEVEL_IDS.map(id => ({ id, name: pf.levels[id].name, blurb: pf.levels[id].blurb, estimatedCostEUR: Math.round(perProduct(pf.levels[id].model, runs).eur * 100) / 100 })),
+      moments: MOMENTS.map(id => ({ id, label: MOMENT_LABELS[id] })),
       pieces: PIECES,
-      icons: ICONS,
     };
   });
 
-  // Write the content for one product.
+  // Write the three guides for one product.
   route('POST', '/v1/content', 'tool', async ({ body, who }) => {
     const settings = resolve(body.settings, await platform());
-    const given = productFrom(body.product), shop = shopFrom(body.shop);
+    const given = productFrom(body.product), shopBase = shopFrom(body.shop), brand = brandFrom(body.brand, shopBase);
+    const shop = { ...shopBase, ...(brand.audience && { audience: brand.audience }) };
     await aiReady(who);
     return run(who, 'write', body, async say => {
       const AI = await ai(who), test = AI === mockAi;
       const page = await fillFromPage(given, say);
-      const research = await researchFor(AI, page, settings, say);
-      say(`Teksten schrijven (${settings.languages.join(', ')})…`);
-      const { content } = await AI.write({ page, research, shop, settings, rules: settings.rules });
+      const found = await researchFor(AI, page, settings, say);
+      const research = { ...found, facts: [...brand.facts, ...found.facts] };
+      say(`Gidsen schrijven (${settings.languages.join(', ')})…`);
+      const { content: written } = await AI.write({ page, research, shop, settings, rules: settings.rules });
+      const content = contentWithIds(written);
       const quality = await repair(AI, content, { page, research, shop }, settings, say);
       const costUsd = jobCost.getStore().usd;
       // what one product cost from start to finish: the basis for the cost estimates
@@ -290,14 +312,12 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
     });
   });
 
-  // A result the tool sends back, checked, so a revision starts from something whole.
+  // A result the tool sends back, perhaps with texts the shop edited: paired up again per language.
   function readResult(r, pf) {
-    if (!r || typeof r !== 'object' || r.formatVersion !== FORMAT_VERSION || !r.content || !Array.isArray(r.sources) || !r.product?.url)
-      throw new SettingsError(`content: stuur het hele resultaat terug zoals de engine het gaf (formatVersion ${FORMAT_VERSION})`, 'content');
+    if (!r || typeof r !== 'object' || r.formatVersion !== FORMAT_VERSION || !r.guides || !Array.isArray(r.sources) || !Array.isArray(r.languages))
+      throw new SettingsError(`content: stuur het hele resultaat terug zoals de engine het gaf (formatVersion ${FORMAT_VERSION}), met eventueel aangepaste guides`, 'content');
     const settings = resolve(r.settings, pf);
-    const parsed = schemas(settings.languages).Content.safeParse(r.content);
-    if (!parsed.success) throw new SettingsError('content: de inhoud heeft niet de verwachte vorm (' + parsed.error.issues[0]?.path.join('.') + ')', 'content');
-    return { settings, content: parsed.data };
+    return { settings, content: fromTool(r.guides, r.citations || {}, settings.languages) };
   }
 
   // Rewrite one piece, with the shop's wish.
@@ -306,7 +326,7 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
     const { content } = readResult(r, pf);
     // the level, tone or form of address may have changed since the content was written
     const settings = resolve({ ...r.settings, ...(body.settings || {}) }, pf);
-    if (settings.languages.join() !== r.languages.join()) throw new SettingsError('settings.languages: een revisie houdt dezelfde talen; schrijf de inhoud opnieuw voor andere talen', 'settings.languages');
+    if (settings.languages.join() !== r.languages.join()) throw new SettingsError('settings.languages: een revisie houdt dezelfde talen; schrijf de gidsen opnieuw voor andere talen', 'settings.languages');
     const piecePath = String(body.piece || '');
     if (!kindOf(piecePath) || getPath(content, piecePath) == null) throw new SettingsError(`piece: onbekend onderdeel "${piecePath}". Zie GET /v1/options voor de onderdelen.`, 'piece');
     const wish = body.wish == null ? '' : String(body.wish).trim();
@@ -314,21 +334,21 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
     await aiReady(who);
     return run(who, 'revise', body, async say => {
       const AI = await ai(who), test = AI === mockAi;
-      const facts = r.sources.map(({ id, category, claim, url, title }) => ({ id: String(id), category, claim: String(claim || ''), url, title }));
+      const facts = r.sources.map(({ id, category, claim, url, title }) => ({ id: String(id), category, claim: String(claim || ''), url: url || (category === 'shop' ? null : 'shop:product'), title }));
       // what the shop says about its own product may be cited, as the shop's word
-      if (wish) facts.push({ id: 'w' + (facts.filter(f => f.id.startsWith('w')).length + 1), category: 'shop', claim: wish, url: r.product.url, title: 'Wens van de shop' });
+      if (wish) facts.push({ id: 'w' + (facts.filter(f => f.id.startsWith('w')).length + 1), category: 'shop', claim: wish, url: r.product?.url || null, title: 'Wens van de shop' });
       const page = { ...r.product, properties: [] };
       const research = { ...(r.research || {}), facts };
       say(`Onderdeel ${piecePath} herschrijven…`);
-      const { piece } = await AI.revise({ page, research, shop: r.shop, settings, rules: settings.rules, current: content, path: piecePath, wish });
-      setPath(content, piecePath, piece);
+      const { piece } = await AI.revise({ page, research, shop: r.shop, settings, rules: settings.rules, current: forClaude(content), path: piecePath, wish });
+      placePiece(content, piecePath, kindOf(piecePath), piece);
       const quality = await repair(AI, content, { page, research, shop: r.shop }, settings, say);
       return resultOf({ test, settings, page, shop: r.shop || null, research, facts, content, quality, costUsd: jobCost.getStore().usd,
         extra: { revised: { piece: piecePath, wish: wish || null } } });
     });
   });
 
-  // Check content against the AmplifAI rules, e.g. after the shop edited a text by hand. Free and instant.
+  // Check guides against the AmplifAI rules, e.g. after the shop edited a text by hand. Free and instant.
   route('POST', '/v1/content/check', 'tool', async ({ body }) => {
     const { settings, content } = readResult(body.content, await platform());
     return checkContent(content, settings);
@@ -336,7 +356,7 @@ export function createEngine({ store, adminKey, toolKey, toolTestKey, corsOrigin
 
   route('GET', '/v1/content/:id', 'tool', async ({ p, q }) => {
     const j = publicJob(await readJob(p.id));
-    if (q.lang && j.result) j.result = flat(j.result, q.lang);
+    if (q.lang && j.result) j.result = oneLanguage(j.result, q.lang);
     return j;
   });
 

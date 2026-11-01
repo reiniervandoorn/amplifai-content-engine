@@ -6,18 +6,17 @@ import { CHECKS, SELL_WORDS, DELIVERY_WORDS, RETURNS_WORDS } from './quality.js'
 
 export const LANGUAGES = { nl: 'Nederlands', en: 'English', de: 'Deutsch', fr: 'Français' };
 
-// Every setting the tool may send.
+// Every setting the tool may send. Counts are per moment (ordered, in transit, delivered) and stay
+// within what the tool's guide editor allows: 1-5 tips, 0-3 questions, 2-5 answers per question.
 export const FIELDS = {
-  languages:   { type: 'list', options: Object.keys(LANGUAGES), min: 1, default: ['nl', 'en'], label: 'Talen', help: 'De eerste taal wordt eerst en het zorgvuldigst geschreven.' },
-  quality:     { type: 'enum', options: LEVEL_IDS, default: 'basis', label: 'Kwaliteit', help: 'Bepaalt het model, en daarmee de kosten per product.' },
-  tone:        { type: 'enum', options: ['warm', 'neutral', 'expert', 'playful'], default: 'warm', label: 'Toon' },
-  formality:   { type: 'enum', options: ['informal', 'formal'], default: 'informal', label: 'Aanspreekvorm', help: 'je/du/tu of u/Sie/vous' },
-  length:      { type: 'enum', options: ['standard', 'short'], default: 'standard', label: 'Lengte', help: 'Kort: kortere zinnen, minder uitleg.' },
-  tipCount:    { type: 'int', min: 2, max: 4, default: 3, label: 'Tips per ervaringsniveau' },
-  answerCount: { type: 'int', min: 3, max: 4, default: 4, label: 'Antwoorden op de vraag' },
-  expectCount: { type: 'int', min: 2, max: 3, default: 2, label: 'Wat is normaal' },
-  emailItems:  { type: 'int', min: 2, max: 4, default: 3, label: 'Punten per e-mail' },
-  style:       { type: 'text', max: 400, default: '', label: 'Stijlwens van de shop', help: 'Alleen stijl; kan de vaste regels niet veranderen.' },
+  languages:     { type: 'list', options: Object.keys(LANGUAGES), min: 1, default: ['nl'], label: 'Talen', help: 'De eerste taal wordt eerst en het zorgvuldigst geschreven.' },
+  quality:       { type: 'enum', options: LEVEL_IDS, default: 'basis', label: 'Kwaliteit', help: 'Bepaalt het model, en daarmee de kosten per product.' },
+  toneOfVoice:   { type: 'text', max: 2000, default: '', label: 'Tone of voice', help: 'De tekst die de shop koos of schreef. Leeg: de standaardtoon van AmplifAI.' },
+  formality:     { type: 'enum', options: ['auto', 'informal', 'formal'], default: 'auto', label: 'Aanspreekvorm', help: 'auto: volgt de tone of voice ("formally" of "u" betekent u), anders je.' },
+  length:        { type: 'enum', options: ['standard', 'short'], default: 'standard', label: 'Lengte', help: 'Kort: kortere zinnen, minder uitleg.' },
+  tipCount:      { type: 'int', min: 1, max: 5, default: 3, label: 'Tips per moment' },
+  questionCount: { type: 'int', min: 0, max: 3, default: 2, label: 'Vragen per moment' },
+  answerCount:   { type: 'int', min: 2, max: 5, default: 3, label: 'Antwoorden per vraag' },
 };
 
 // The general instructions: how research and writing work for every product. AmplifAI changes them on the
@@ -32,7 +31,7 @@ export const RULES = [
   'No independent tests, reviews or ratings, ever.',
 ];
 // The texts of the instructions to Claude, as AmplifAI can edit them on the admin page. In English: that is
-// what the models follow best. {name} is filled in from the settings, e.g. {tipCount} or {headlineWords}.
+// what the models follow best. {name} is filled in from the settings, e.g. {tipCount} or {questionCount}.
 const TEXTS = {
   researchBrief: { group: 'research', label: 'Opdracht voor het onderzoek', rows: 18, help: 'Welke soorten feiten Claude zoekt en welke bronnen mogen. Het antwoordformaat (JSON) voegt de engine zelf toe. Invulvelden: {factsMin}, {factsMax}, {questionIdeas}.',
     default: `You research one product for AmplifAI, a guide a webshop customer sees right after paying. Your job is to collect facts, not to write the texts.
@@ -56,25 +55,20 @@ Also propose up to {questionIdeas} question ideas: short questions to the custom
 Aim for {factsMin} to {factsMax} facts.` },
 
   writerIntro: { group: 'writing', label: 'Opdracht voor het schrijven', rows: 4, help: 'De eerste alinea van elke schrijfopdracht: wat de gids is en hoe hij moet voelen.',
-    default: 'You write the content for an AmplifAI guide. The guide appears for a webshop\'s customer right after they pay, and follows the order through the shipping and delivery emails. It feels like "the tip you wish you had been given". Another tool arranges your pieces into the guide, so each piece must stand on its own.' },
+    default: 'You write the content for an AmplifAI guide. The guide appears for a webshop\'s customer right after they pay, and follows the order through the shipping and delivery emails. For each of three moments you write one short guide: an intro, a few questions whose answers change what comes next, and tips. It feels like "the tip you wish you had been given".' },
   shortLength: { group: 'writing', label: 'Als de shop "kort" kiest', rows: 2, default: 'Use the shortest version of every piece: one sentence where two are allowed.' },
+  houseStyle: { group: 'tone', label: 'Huisstijl van AmplifAI', rows: 4, help: 'Geldt altijd, voor elke shop. De tone of voice van de shop komt hier bovenop, maar kan de huisstijl en de regels niet veranderen.',
+    default: 'Calm and clear, like the best shop assistant: they know everything about the brand and the product, and sell nothing. Short sentences, concrete and specific. No superlatives, no hype, no exclamation marks in a row. Every sentence helps the customer with this product.' },
+  defaultTone: { group: 'tone', label: 'Standaardtoon', rows: 3, help: 'Als de tool geen tone of voice meestuurt. Shops kiezen hun eigen toon in de tool.',
+    default: 'Warm and personal, like a knowledgeable friend behind the counter. Light, never gushing. Short, clear sentences.' },
 
-  toneWarm:    { group: 'tone', tone: 'warm', label: 'Warm', rows: 2, default: 'Warm and personal, like a knowledgeable friend behind the counter. Light, never gushing.' },
-  toneNeutral: { group: 'tone', tone: 'neutral', label: 'Neutraal', rows: 2, default: 'Calm, clear and factual. Short sentences. No jokes.' },
-  toneExpert:  { group: 'tone', tone: 'expert', label: 'Deskundig', rows: 2, default: 'Expert and precise, like a specialist who loves the product. Correct terms, each explained in a few words.' },
-  tonePlayful: { group: 'tone', tone: 'playful', label: 'Speels', rows: 2, default: 'Light and witty. The headline may be a gentle joke. Never jokey about safety or money.' },
+  momentOrdered:   { group: 'moments', moment: 'ordered', label: 'Besteld (bedankpagina)', rows: 3, default: 'Right after checkout. Why this product fits and what to expect: open with the most surprising sourced brand or product fact, and ask what the customer will use it for or how experienced they are.' },
+  momentInTransit: { group: 'moments', moment: 'in_transit', label: 'Onderweg (verzendmail)', rows: 3, default: 'While the parcel is on its way. What to prepare so the first use goes well: space, settings, things to read up on, and parts that are required (as help, never as a sale).' },
+  momentDelivered: { group: 'moments', moment: 'delivered', label: 'Bezorgd (bezorgmail)', rows: 3, default: 'Just delivered. The first five minutes of use, what is normal in the first days (noises, smells, stiffness, break-in), and the most important care point.' },
 
-  pieceIntro:        { group: 'pieces', piece: 'intro', label: 'Titel, kopregel en uitnodiging', rows: 3, default: 'a title, one confident headline of at most {headlineWords} words, and a teaser (headline + one short line) that invites the customer to open the guide.' },
-  pieceStory:        { group: 'pieces', piece: 'story', label: 'Merkverhaal', rows: 2, default: 'the brand story in 1 or 2 sentences, built on the most surprising sourced brand or product fact.' },
-  pieceSpecial:      { group: 'pieces', piece: 'special', label: 'Bijzonder aan dit product', rows: 2, default: '{specialCount} things that make this exact product special. Each has a short title and 1 or 2 sentences.' },
-  pieceExpect:       { group: 'pieces', piece: 'expect', label: 'Wat is normaal (eerste dagen)', rows: 2, default: '{expectCount} first-week expectations that answer "is this normal?" before anyone asks. A short bold lead sentence and one or two explaining sentences.' },
-  pieceFact:         { group: 'pieces', piece: 'fact', label: 'Wist je dat', rows: 2, default: 'one "did you know" with a striking, sourced number.' },
-  pieceCare:         { group: 'pieces', piece: 'care', label: 'Onderhoud', rows: 2, default: '{careCount} care points (cleaning, storing, lifespan). Short title and 1 or 2 sentences.' },
-  pieceExperience:   { group: 'pieces', piece: 'experience', label: 'Ervaringsvraag', rows: 2, default: 'an experience question with three short captions for beginner (new), regular and expert.' },
-  pieceQuestion:     { group: 'pieces', piece: 'question', label: 'De vraag, antwoorden en hun tips', rows: 4, default: 'one question whose answer genuinely changes the advice (goal, situation or compatibility check). {answerCount} options, the last one a "not sure" or "not right now". Every option gets a result (headline and exactly 2 short lines; ok=false when the customer should check or do something first) and the tip it unlocks, with a "why" line.' },
-  pieceTips:         { group: 'pieces', piece: 'tips', label: 'Tips per ervaringsniveau', rows: 2, default: '{tipCount} tips per level (new, regular, expert). Never repeat a tip between levels or with care. Each tip: a short title and 1 or 2 sentences.' },
-  pieceWhileYouWait: { group: 'pieces', piece: 'whileYouWait', label: 'Verzendmail: terwijl je wacht', rows: 2, default: 'for the shipping email, {emailItems} things to prepare before it arrives.' },
-  pieceFirstMinutes: { group: 'pieces', piece: 'firstMinutes', label: 'Bezorgmail: de eerste minuten', rows: 2, default: 'for the delivery email, {emailItems} things to do on unboxing.' },
+  pieceIntro:     { group: 'pieces', label: 'Intro', rows: 2, default: '1 to 3 short sentences that open this moment\'s guide. It gives before it asks.' },
+  pieceQuestions: { group: 'pieces', label: 'Vragen en antwoorden', rows: 5, default: '{questionCount} short questions, each with {answerCount} answers; the last answer may be "not sure" or "not right now". A question asks something whose answer genuinely changes the advice (a goal, a situation, experience, a compatibility check). An answer may have a reply: 1 or 2 sentences shown right after it is picked, with advice for exactly that answer. Each answer leads to the next question ("next"), to a later question (its index) or straight to the tips ("end"); only forward.' },
+  pieceTips:      { group: 'pieces', label: 'Tips', rows: 2, default: '{tipCount} tips, each 1 or 2 sentences, phrased as help. Never repeat a tip between moments.' },
 };
 
 export const INSTRUCTIONS = {
@@ -86,9 +80,6 @@ export const INSTRUCTIONS = {
   blockedDomains: { type: 'textlist', max: 200, group: 'research', label: 'Geblokkeerde bronnen', help: 'Eén domein per regel. Tests, reviews, fora en andere winkels.',
     default: ['consumentenbond.nl', 'tweakers.net', 'kieskeurig.nl', 'beslist.nl', 'trustpilot.com', 'kiyoh.com', 'reddit.com', 'youtube.com',
       'rtings.com', 'runrepeat.com', 'which.co.uk', 'consumerreports.org', 'amazon.com', 'amazon.nl', 'bol.com'] },
-  specialCount:  { type: 'int', min: 1, max: 4, default: 2, group: 'writing', label: 'Punten bij "bijzonder aan dit product"' },
-  careCount:     { type: 'int', min: 1, max: 5, default: 3, group: 'writing', label: 'Punten bij onderhoud' },
-  headlineWords: { type: 'int', min: 4, max: 12, default: 8, group: 'writing', label: 'Kopregel, maximaal aantal woorden' },
   effort:        { type: 'enum', options: ['low', 'medium', 'high', 'xhigh'], default: 'high', group: 'writing', label: 'Denkniveau bij schrijven', help: 'Hoger is zorgvuldiger, maar trager en duurder.' },
   extra:         { type: 'text', max: 2000, default: '', group: 'writing', label: 'Extra instructie voor het schrijven', help: 'Geldt voor alle producten, bovenop de regels. Bijvoorbeeld: "Begin tips nooit met Zorg dat".' },
   rules:         { type: 'textlist', max: 30, default: RULES, group: 'rules', label: 'Regels in de schrijfopdracht', help: 'Eén regel per regel, in het Engels. Gaan in elke schrijfopdracht mee.' },
@@ -98,12 +89,11 @@ export const INSTRUCTIONS = {
   sellWords:     { type: 'textlist', max: 200, group: 'check', label: 'Woorden die klinken als verkopen', help: 'Eén woord of zinsdeel per regel, in elke taal.', default: SELL_WORDS },
   deliveryWords: { type: 'textlist', max: 200, group: 'check', label: 'Woorden die een bezorgmoment beloven', help: '# staat voor een getal, bijv. "binnen # dagen".', default: DELIVERY_WORDS },
   returnsWords:  { type: 'textlist', max: 200, group: 'check', label: 'Woorden die retourneren ontmoedigen', default: RETURNS_WORDS },
-  maxHeadline:   { type: 'int', min: 20, max: 200, default: 70, group: 'check', label: 'Kopregel, tekens' },
-  maxTitle:      { type: 'int', min: 20, max: 200, default: 60, group: 'check', label: 'Titel, tekens' },
-  maxLead:       { type: 'int', min: 30, max: 300, default: 90, group: 'check', label: 'Korte kop of titel van een tip, tekens' },
-  maxStory:      { type: 'int', min: 100, max: 1000, default: 300, group: 'check', label: 'Merkverhaal, tekens' },
-  maxText:       { type: 'int', min: 100, max: 1000, default: 260, group: 'check', label: 'Overige tekst, tekens' },
-  maxLine:       { type: 'int', min: 60, max: 500, default: 160, group: 'check', label: 'Regel onder een antwoord, tekens' },
+  maxIntro:      { type: 'int', min: 100, max: 2000, default: 400, group: 'check', label: 'Intro, tekens' },
+  maxTip:        { type: 'int', min: 80, max: 1000, default: 280, group: 'check', label: 'Tip, tekens' },
+  maxQuestion:   { type: 'int', min: 40, max: 300, default: 120, group: 'check', label: 'Vraag, tekens' },
+  maxAnswer:     { type: 'int', min: 20, max: 200, default: 60, group: 'check', label: 'Antwoord, tekens' },
+  maxReply:      { type: 'int', min: 60, max: 500, default: 240, group: 'check', label: 'Reactie op een antwoord, tekens' },
 };
 
 // What AmplifAI sets in the admin page.
@@ -203,7 +193,14 @@ export function resolve(given, platform) {
   const s = structuredClone(defaults);
   for (const [k, v] of Object.entries(given || {})) if (v !== null && v !== undefined) s[k] = checkValue(k, v);
   const levels = { ...DEFAULT_LEVELS, ...(platform?.levels || {}) };
-  return { ...instructions, ...s, model: (levels[s.quality] || levels.basis).model };
+  return { ...instructions, ...s, formality: formalityOf(s, instructions), model: (levels[s.quality] || levels.basis).model };
+}
+
+// "auto" reads the form of address from the tone of voice: the tool's presets say "address the customer formally".
+function formalityOf(s, instructions) {
+  if (s.formality !== 'auto') return s.formality;
+  const tone = s.toneOfVoice || instructions.defaultTone || '';
+  return /\b(formally|formal address|formeel|met u|vous|sie)\b/i.test(tone) && !/\binformal/i.test(tone) ? 'formal' : 'informal';
 }
 
 // The settings as the tool sends them back: without the model and research internals.
@@ -211,6 +208,6 @@ export const publicSettings = s => Object.fromEntries(Object.keys(FIELDS).map(k 
 
 // What a screen needs to draw a form for one table of fields: the tool's settings, or AmplifAI's instructions.
 export const describe = (defaults = {}, table = FIELDS) => Object.fromEntries(Object.entries(table).map(([k, f]) => [k, {
-  type: f.type, label: f.label, ...(f.help && { help: f.help }), ...(f.group && { group: f.group }), ...(f.rows && { rows: f.rows }), ...(f.tone && { tone: f.tone }), ...(f.piece && { piece: f.piece }), default: defaults[k] ?? f.default,
+  type: f.type, label: f.label, ...(f.help && { help: f.help }), ...(f.group && { group: f.group }), ...(f.rows && { rows: f.rows }), ...(f.moment && { moment: f.moment }), default: defaults[k] ?? f.default,
   ...(f.options && { options: f.options }), ...(f.min != null && { min: f.min }), ...(f.max != null && { max: f.max }),
 }]));

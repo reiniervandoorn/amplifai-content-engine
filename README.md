@@ -1,6 +1,6 @@
 # AmplifAI content engine
 
-Writes the content for AmplifAI product guides. The AmplifAI tool sends one product and the shop's settings; the engine reads the product page, researches the brand, writes every piece of content in every language with a source for each fact, checks it against the AmplifAI rules and hands it back. The tool stores the content, shows it to the shop, asks for changes and arranges it into the guide.
+Writes the guides for AmplifAI products. The AmplifAI tool (juulvs/amplifai) sends one product with the shop's brand knowledge and settings; the engine researches the brand, writes the three guides (`ordered`, `in_transit`, `delivered`) in the tool's own guide format with a source for every fact, checks them against the AmplifAI rules and the tool's limits, and hands them back. The tool saves them with `save_guide_content`, shows them to the shop, asks for changes and publishes them.
 
 The engine keeps no shops, products or guides. A result is kept for 7 days so the tool can pick it up.
 
@@ -10,11 +10,11 @@ The engine keeps no shops, products or guides. A result is kept for 7 days so th
 
 | call | what it does |
 |---|---|
-| `GET /v1/options` | the settings the tool can send (options, limits, defaults), the quality levels with estimated cost, the pieces of content |
-| `POST /v1/content` | write the content for one product; answers with a job |
+| `GET /v1/options` | the settings the tool can send (options, limits, defaults), the quality levels with estimated cost, the moments and the pieces a revision can ask for |
+| `POST /v1/content` | write the three guides for one product; answers with a job |
 | `POST /v1/content/revise` | rewrite one piece, with the shop's wish; answers with a job |
-| `POST /v1/content/check` | hold content against the AmplifAI rules, e.g. after a hand edit; free and instant |
-| `GET /v1/content/{id}` | the job and, when done, its result; `?lang=nl` for plain strings |
+| `POST /v1/content/check` | hold guides against the AmplifAI rules and the tool's limits, e.g. after a hand edit; free and instant |
+| `GET /v1/content/{id}` | the job and, when done, its result; `?lang=nl` for one language's guides |
 | `GET /v1/health` | up, and test or live |
 
 AmplifAI only (admin key): `GET /v1/admin/status`, `PUT /v1/admin/ai` (Anthropic key, test or live), `PATCH /v1/admin/settings` (limits, model per level, general instructions, defaults for shops), `GET /v1/admin/prompt` (the full instruction), `POST /v1/admin/stop` (emergency stop). The admin page at `/admin` uses these.
@@ -23,15 +23,16 @@ AmplifAI only (admin key): `GET /v1/admin/status`, `PUT /v1/admin/ai` (Anthropic
 
 Everything the engine asks Claude, for every product, is set by AmplifAI on the admin page under *Instructies* (`PATCH /v1/admin/settings { instructions, defaults }`). Only what differs from the built-in default is stored; `null` for a field puts the default back. The texts for Claude are in English; `{tipCount}` and the like are filled in from the settings.
 
-- **Tone:** what each of the four tones (warm, neutral, expert, playful) tells Claude.
-- **Pieces:** one line per piece of the guide (intro, story, special, expect, fact, care, experience, question, tips, shipping email, delivery email), and how many points `special` and `care` get.
+- **Tone:** AmplifAI's house style, which always applies, and the default tone for a shop without a tone of voice. A shop's own tone of voice from the dashboard comes on top of the house style and cannot override it or the rules.
+- **Moments:** what each of the three guides is about (ordered, in transit, delivered).
+- **Pieces:** what an intro, the questions with answers and replies, and the tips should be.
 - **Writing:** the opening of the writing instruction, what "short" means, the headline's maximum words, the thinking level, and an extra instruction for all writing.
 - **Research:** the research brief (kinds of facts, allowed and forbidden sources), how many facts and question ideas, searches and page reads per product, and the blocked sources. The answer format stays fixed in code.
 - **Rules:** the rules in every writing instruction.
 - **Quality check** (`src/quality.js`): every check (missing text, selling, delivery promises, discouraging returns, form of address, numbers without a source, answers without a tip, duplicate answers, length, headline length, counts, repeated tips) can be an error, a warning or off. The word lists for selling, delivery promises and returns (`#` stands for a number) and the length guidelines are editable. "Voldoet aan de AmplifAI-regels" means no check found an error. In live mode errors are rewritten once automatically.
 - **Defaults for shops:** what the engine uses when the tool leaves a setting out. `GET /v1/options` shows these to the tool.
 
-`GET /v1/admin/prompt?tone=playful&languages=nl,en` returns the full research and writing instruction exactly as Claude gets it; the admin page shows it under *Volledige opdracht*. The tool cannot send or change any of this. Changes apply to everything written afterwards; a change to the research instructions means new research instead of the stored one.
+`GET /v1/admin/prompt?toneOfVoice=…&languages=nl,en` returns the full research and writing instruction exactly as Claude gets it; the admin page shows it under *Volledige opdracht*. The tool cannot send or change any of this. Changes apply to everything written afterwards; a change to the research instructions means new research instead of the stored one.
 
 ## Run it
 
@@ -47,18 +48,18 @@ The admin page is at `http://localhost:4317/admin`. On your own computer it logs
 
 ### Test mode
 
-Research and writing are replaced by fixed templates (`src/mock-ai.js`). Everything else runs for real: reading the product page, settings, jobs, the quality check, revisions, callbacks. The texts are placeholders in the right shape, languages, form of address, tone and counts. Dutch and English are written out; German and French reuse the English text with a `[DE]`/`[FR]` tag. Nothing is sent to Anthropic.
+Research and writing are replaced by fixed templates (`src/mock-ai.js`). Everything else runs for real: reading the product page, settings, jobs, the quality check, revisions, callbacks. The guides are placeholders in the tool's exact format, with the right languages, form of address and counts, and real ids and branching. Dutch and English are written out; German and French reuse the English text with a `[DE]`/`[FR]` tag. Nothing is sent to Anthropic.
 
 - The **test key** (`TOOL_TEST_KEY`) always gets test texts, even when the engine is live. The tool builds against it.
 - AmplifAI switches the engine between test and live on the admin page, without a restart.
 
 ## How it works
 
-1. **Product:** what the tool sent. When the name or a description of at least 200 characters is missing, the engine reads the product page (structured data first, then the page text; `src/crawl.js`), honouring robots.txt.
+1. **Product and shop:** what the tool sent: product name and description (a URL is optional), and the shop's brand knowledge, which becomes facts with id `s1`, `s2`, … When a URL is given and the name or a description of at least 200 characters is missing, the engine reads the product page (structured data first, then the page text; `src/crawl.js`), honouring robots.txt.
 2. **Research** (`src/ai.js`): Claude searches the brand's and manufacturer's own sites and collects facts, each with the URL it came from. Facts whose URL Claude did not actually see are dropped. Independent tests, reviews, forums and other shops are not allowed as sources (the blocked sources in the instructions). In live mode the research is kept for `KEEP_DAYS` per product and quality level and reused, so a new tone or a retry only pays for writing; changed product data means new research.
-3. **Writing:** one call writes every piece in every language as JSON, citing facts by id. The engine checks the JSON against the schema itself and sends a wrong answer back once with what was wrong. (Anthropic's strict structured outputs refuse a schema this size.) The fixed AmplifAI rules go into every prompt; the shop's style wish cannot override them.
-4. **Quality check** (`src/quality.js`, set under *Instructies*): selling language, delivery promises, discouraging returns, numbers without a source, the wrong form of address, missing languages, length, repeated tips, answers without a tip. In live mode pieces with an error are rewritten once.
-5. **Revision:** the tool sends the whole result back with a piece and a wish. The wish is added as a fact (`w1`, …) so what the shop says about its own product can be cited; the rest of the content and all earlier facts stay.
+3. **Writing:** one call writes the three guides in every language as JSON, citing facts by id; answers lead on by question index. The engine checks the JSON against the schema itself and sends a wrong answer back once with what was wrong. (Anthropic's strict structured outputs refuse a schema this size.) Then it gives every question and answer a UUID, turns the indices into question ids, and splits the texts per language (`src/guides.js`). The fixed AmplifAI rules go into every prompt; the shop's tone of voice cannot override them.
+4. **Quality check** (`src/quality.js`, set under *Instructies*): selling language, delivery promises, discouraging returns, numbers without a source, the wrong form of address, missing languages, the tool's limits (so `save_guide_content` accepts it), the question flow, length, counts, repeated tips. In live mode pieces with an error are rewritten once.
+5. **Revision:** the tool sends the whole result back, with its current texts, plus a piece and a wish. Ids and `next` stay; the wish is added as a fact (`w1`, …) so what the shop says about its own product can be cited; the rest and all earlier facts stay.
 
 The quality level (`basis`, `plus`, `premium`) picks the Claude model: by default Sonnet 5.5, Opus 5.5 and Fable 5.1. AmplifAI can change the model per level on the admin page. Pricing for shops is the tool's business.
 

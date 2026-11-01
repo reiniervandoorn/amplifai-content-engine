@@ -2,9 +2,10 @@
 //
 //   import { ContentEngine } from './amplifai-content.js';
 //   const ce = new ContentEngine({ baseUrl: 'http://localhost:4317', key: 'tk_test_…' });
-//   const job = await ce.write({ product: { url, name, brand, description }, settings: { tone: 'warm' } });
+//   const job = await ce.write({ product: { name, description, sku }, brand, settings: { toneOfVoice } });
 //   const done = await ce.waitFor(job);              // done.result is what the tool stores
-//   const rev = await ce.waitFor(await ce.revise(done.result, 'tips.new.1', 'Korter graag'));
+//   done.result.guides.nl.ordered                    // the tool's GuideContent, for save_guide_content
+//   const rev = await ce.waitFor(await ce.revise(done.result, 'ordered.tips.1', 'Korter graag'));
 //
 // Keep the key on the server: never send it to a browser.
 
@@ -33,9 +34,9 @@ export class ContentEngine {
 
   // the settings the tool can offer shops, the quality levels and the pieces of content
   options() { return this.request('GET', '/v1/options') }
-  // { product, shop?, settings?, reference?, callbackUrl?, wait? } → a job
+  // { product, shop?, brand?, settings?, reference?, callbackUrl?, wait? } → a job
   write(req) { return this.request('POST', '/v1/content', req) }
-  // result: what an earlier job returned; piece: e.g. "tips.new.1"; wish: the shop's words
+  // result: what an earlier job returned (with the tool's current texts); piece: e.g. "ordered.questions.0"; wish: the shop's words
   revise(result, piece, wish, extra = {}) { return this.request('POST', '/v1/content/revise', { content: result, piece, wish, ...extra }) }
   // the AmplifAI rules, held against content the shop edited by hand
   check(result) { return this.request('POST', '/v1/content/check', { content: result }) }

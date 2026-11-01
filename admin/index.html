@@ -154,27 +154,46 @@ pre{background:#1d1d1f;color:#f5f5f7;padding:14px;border-radius:12px;overflow:au
     <div class="try">
       <div class="card form">
         <h2>Product</h2>
-        <p class="mute small">Dezelfde aanroep die de tool doet. Wat je leeg laat, leest de engine van de productpagina.</p>
+        <p class="mute small">Dezelfde aanroep die de tool doet. Naam en beschrijving zijn genoeg; met een url leest de engine de pagina erbij.</p>
         <div class="one">
-          <label class="f">Productpagina (url)<input id="pUrl" placeholder="https://shop.nl/products/…"></label>
           <div class="grid">
             <label class="f">Naam<input id="pName"></label>
             <label class="f">Merk<input id="pBrand"></label>
           </div>
           <label class="f">Beschrijving<textarea id="pDesc"></textarea></label>
-          <label class="f">Webshop<input id="sName" placeholder="Naam van de shop"></label>
+          <div class="grid">
+            <label class="f">SKU<input id="pSku"></label>
+            <label class="f">Productpagina (optioneel)<input id="pUrl" placeholder="https://…"></label>
+          </div>
+          <div class="grid">
+            <label class="f">Webshop<input id="sName" placeholder="Naam"></label>
+            <label class="f">Website<input id="sUrl" placeholder="https://…"></label>
+          </div>
         </div>
+        <details style="margin-top:14px">
+          <summary class="small" style="cursor:pointer;font-weight:500">Merkkennis van de shop (optioneel)</summary>
+          <div class="one" style="margin-top:10px">
+            <label class="f">Verhaal<textarea id="bStory" rows="2"></textarea></label>
+            <label class="f">Voor wie<input id="bAudience"></label>
+            <label class="f">Wat de shop anders maakt<textarea id="bUsps" rows="2" placeholder="Eén per regel"></textarea></label>
+            <label class="f">Advies dat de shop vaak geeft<textarea id="bExpertise" rows="3" placeholder="Eén per regel"></textarea></label>
+          </div>
+        </details>
         <h3 style="margin:18px 0 8px">Instellingen van de shop</h3>
-        <div class="grid">
-          <label class="f">Toon<select id="sTone"></select></label>
+        <label class="f">Tone of voice
+          <select id="sPreset" style="margin-bottom:6px"></select>
+          <textarea id="sTone" rows="3" placeholder="Leeg: de standaardtoon van AmplifAI"></textarea></label>
+        <div class="grid" style="margin-top:10px">
           <label class="f">Aanspreekvorm<select id="sForm"></select></label>
           <label class="f">Kwaliteit<select id="sQuality"></select></label>
           <label class="f">Lengte<select id="sLength"></select></label>
+          <label class="f">Tips per moment<input type="number" id="sTips" min="1" max="5"></label>
+          <label class="f">Vragen per moment<input type="number" id="sQuestions" min="0" max="3"></label>
+          <label class="f">Antwoorden per vraag<input type="number" id="sAnswers" min="2" max="5"></label>
         </div>
         <div class="checks" id="sLangs"></div>
-        <label class="f" style="margin-top:10px">Stijlwens<input id="sStyle" placeholder="Bijv. kort en zakelijk"></label>
         <div class="checks" style="margin-top:14px"><label><input type="checkbox" id="useTest" checked> Gratis testteksten (testsleutel)</label></div>
-        <div style="margin-top:14px"><button class="primary" id="writeBtn" style="width:100%">Schrijf de teksten</button></div>
+        <div style="margin-top:14px"><button class="primary" id="writeBtn" style="width:100%">Schrijf de gidsen</button></div>
         <p id="costLine" class="small mute" style="margin:8px 0 0;text-align:center"></p>
         <p id="tryMsg" class="note hide"></p>
       </div>
@@ -183,7 +202,7 @@ pre{background:#1d1d1f;color:#f5f5f7;padding:14px;border-radius:12px;overflow:au
         <div id="progressBox" class="card hide"><div class="progress"><span class="spin"></span><span id="progress">Bezig…</span></div></div>
         <div id="emptyBox" class="card empty">
           <h2>Nog niets geschreven</h2>
-          <p>Vul links een product in en klik op <b>Schrijf de teksten</b>.<br>Het resultaat verschijnt hier, per onderdeel van de gids.</p>
+          <p>Vul links een product in en klik op <b>Schrijf de gidsen</b>.<br>Hier verschijnen de drie gidsen, precies zoals de tool ze opslaat.</p>
         </div>
         <div id="result" class="hide">
           <div class="card">
@@ -201,7 +220,7 @@ pre{background:#1d1d1f;color:#f5f5f7;padding:14px;border-radius:12px;overflow:au
             <nav class="chips" id="chips"></nav>
           </div>
           <div id="readView"></div>
-          <div id="jsonView" class="card hide"><p class="mute small">Dit is precies wat de tool krijgt en bewaart. Voor een wijziging stuurt de tool het in zijn geheel terug.</p><pre id="json"></pre></div>
+          <div id="jsonView" class="card hide"><p class="mute small">Dit is precies wat de tool krijgt. <code>guides[taal][moment]</code> past direct in de gids-editor van de tool; <code>citations</code> geeft de bronnen per tekst. Voor een wijziging stuurt de tool het hele resultaat terug.</p><pre id="json"></pre></div>
         </div>
       </div>
     </div>
@@ -211,22 +230,26 @@ pre{background:#1d1d1f;color:#f5f5f7;padding:14px;border-radius:12px;overflow:au
   <section data-page="instructies" class="hide">
     <div class="card">
       <h2>Instructies</h2>
-      <p class="mute small">Alles wat de engine aan Claude vraagt, voor elk product. De tool kan dit niet aanpassen; shops kiezen alleen toon, aanspreekvorm, talen, kwaliteit en aantallen. Teksten voor Claude staan in het Engels: dat volgt het model het best. <code>{tipCount}</code> en dergelijke vult de engine in met de instellingen. Wijzigingen gelden voor alles wat hierna geschreven wordt.</p>
+      <p class="mute small">Alles wat de engine aan Claude vraagt, voor elk product. De tool kan dit niet aanpassen; shops kiezen alleen hun tone of voice, aanspreekvorm, talen, kwaliteit en aantallen. Teksten voor Claude staan in het Engels: dat volgt het model het best. <code>{tipCount}</code> en dergelijke vult de engine in met de instellingen. Wijzigingen gelden voor alles wat hierna geschreven wordt.</p>
       <nav class="chips" id="iChips">
-        <a href="#instructies/i-tone">Toon</a><a href="#instructies/i-pieces">Onderdelen</a><a href="#instructies/i-writing">Schrijven</a><a href="#instructies/i-research">Onderzoek</a>
+        <a href="#instructies/i-tone">Toon</a><a href="#instructies/i-moments">Momenten</a><a href="#instructies/i-pieces">Onderdelen</a><a href="#instructies/i-writing">Schrijven</a><a href="#instructies/i-research">Onderzoek</a>
         <a href="#instructies/i-rules">Regels</a><a href="#instructies/i-check">Kwaliteitscheck</a><a href="#instructies/i-defaults">Standaard voor shops</a><a href="#instructies/i-prompt">Volledige opdracht</a>
       </nav>
     </div>
     <div class="card group" id="i-tone">
-      <div class="gh"><div><h2>Toon</h2><p>De shop kiest een van deze vier in de tool. Dit is wat Claude bij die keuze te lezen krijgt.</p></div><button class="link" data-reset="tone">Standaard</button></div>
+      <div class="gh"><div><h2>Toon</h2><p>De huisstijl van AmplifAI geldt altijd. De tone of voice die de shop in het dashboard koos, komt daar bovenop; de standaardtoon alleen als de shop er geen heeft.</p></div><button class="link" data-reset="tone">Standaard</button></div>
       <div class="pieces wide" data-fields="tone"></div>
     </div>
+    <div class="card group" id="i-moments">
+      <div class="gh"><div><h2>De drie momenten</h2><p>Waar de gids per moment over gaat. Elk moment krijgt een eigen gids in de tool.</p></div><button class="link" data-reset="moments">Standaard</button></div>
+      <div class="pieces wide" data-fields="moments"></div>
+    </div>
     <div class="card group" id="i-pieces">
-      <div class="gh"><div><h2>Onderdelen van de gids</h2><p>Per onderdeel wat Claude schrijft. Invulvelden: <code>{headlineWords}</code> <code>{specialCount}</code> <code>{careCount}</code> <code>{expectCount}</code> <code>{answerCount}</code> <code>{tipCount}</code> <code>{emailItems}</code>.</p></div><button class="link" data-reset="pieces">Standaard</button></div>
+      <div class="gh"><div><h2>Onderdelen van elke gids</h2><p>Intro, vragen met antwoorden en reacties, en tips. Invulvelden: <code>{tipCount}</code> <code>{questionCount}</code> <code>{answerCount}</code>.</p></div><button class="link" data-reset="pieces">Standaard</button></div>
       <div class="pieces wide" data-fields="pieces"></div>
     </div>
     <div class="card group" id="i-writing">
-      <div class="gh"><div><h2>Schrijven</h2><p>De opdracht, vaste aantallen en een extra instructie voor alles. Aantallen voor tips, antwoorden, "wat is normaal" en e-mails kiest de shop.</p></div><button class="link" data-reset="writing">Standaard</button></div>
+      <div class="gh"><div><h2>Schrijven</h2><p>De opdracht en een extra instructie voor alles. Aantallen voor tips, vragen en antwoorden kiest de shop.</p></div><button class="link" data-reset="writing">Standaard</button></div>
       <div class="grid" data-fields="writing" data-kind="short"></div>
       <div class="one" data-fields="writing" data-kind="long" style="margin-top:12px"></div>
     </div>
@@ -254,7 +277,7 @@ pre{background:#1d1d1f;color:#f5f5f7;padding:14px;border-radius:12px;overflow:au
     <div class="card group" id="i-prompt">
       <div class="gh"><div><h2>Volledige opdracht</h2><p>Precies wat Claude krijgt, met de opgeslagen instructies, voor de instellingen die je hier kiest. Het product en de gevonden feiten komen er per product bij.</p></div></div>
       <div class="row">
-        <select id="pvTone" style="width:auto"></select><select id="pvForm" style="width:auto"></select><select id="pvLength" style="width:auto"></select>
+        <input id="pvTone" placeholder="Tone of voice (leeg: standaard)" style="flex:1;min-width:200px"><select id="pvForm" style="width:auto"></select><select id="pvLength" style="width:auto"></select>
         <input id="pvLangs" value="nl,en" style="width:110px" title="Talen, met komma's">
         <button id="pvBtn">Toon de opdracht</button>
       </div>
@@ -332,7 +355,7 @@ const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAl
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const euro = n => '€' + Number(n || 0).toFixed(2).replace('.', ',');
 const base = location.origin + location.pathname.replace(/\/admin\/?$/, '');
-const NAMES = { warm: 'Warm', neutral: 'Neutraal', expert: 'Deskundig', playful: 'Speels', informal: 'je / jouw', formal: 'u / uw', standard: 'Standaard', short: 'Kort',
+const NAMES = { auto: 'Volgt de toon', informal: 'je / jouw', formal: 'u / uw', standard: 'Standaard', short: 'Kort',
   basis: 'Basis', plus: 'Plus', premium: 'Premium', low: 'Laag', medium: 'Gemiddeld', high: 'Hoog', xhigh: 'Zeer hoog' };
 let key = null, st = null, opts = null, current = null, lang = null, draft = null;
 try { key = sessionStorage.getItem('ce-admin') } catch { }
@@ -425,7 +448,7 @@ document.addEventListener('click', e => {
 });
 
 /* ── instructions ── */
-const DEFAULT_KEYS = ['quality', 'tone', 'formality', 'length', 'tipCount', 'answerCount', 'expectCount', 'emailItems', 'languages'];
+const DEFAULT_KEYS = ['quality', 'formality', 'length', 'tipCount', 'questionCount', 'answerCount', 'languages'];
 const LEVEL_NAMES = { error: 'Fout', warn: 'Opmerking', off: 'Uit' };
 const groupKeys = g => Object.entries(st.instructionFields).filter(([, f]) => f.group === g).map(([k]) => k);
 const dirty = () => !!draft && JSON.stringify(draft) !== JSON.stringify({ instructions: st.instructions, defaults: st.defaults });
@@ -451,9 +474,8 @@ function renderInstructions() {
   const S = st.settingFields;
   $('#iDefaults').innerHTML = DEFAULT_KEYS.filter(k => k !== 'languages').map(k => field(k, S[k], d.defaults[k], 'def')).join('');
   $('#iDefaultLangs').innerHTML = '<span class="small mute">Talen:</span>' + S.languages.options.map(l => `<label><input type="checkbox" data-deflang="${l}" ${d.defaults.languages.includes(l) ? 'checked' : ''}> ${esc(opts.languages[l])}</label>`).join('');
-  const sel = (id, f) => { $(id).innerHTML = f.options.map(o => `<option value="${o}" ${o === d.defaults[f === S.tone ? 'tone' : f === S.formality ? 'formality' : 'length']}>${esc(NAMES[o] || o)}</option>`).join('') };
-  sel('#pvTone', S.tone); sel('#pvForm', S.formality); sel('#pvLength', S.length);
-  $('#pvTone').value = d.defaults.tone; $('#pvForm').value = d.defaults.formality; $('#pvLength').value = d.defaults.length;
+  const sel = (id, f, v) => { $(id).innerHTML = f.options.map(o => `<option value="${o}" ${o === v ? 'selected' : ''}>${esc(NAMES[o] || o)}</option>`).join('') };
+  sel('#pvForm', S.formality, d.defaults.formality); sel('#pvLength', S.length, d.defaults.length);
 }
 // text boxes grow with their text, so a whole instruction is readable without scrolling inside it
 const fit = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px' };
@@ -496,7 +518,7 @@ $('#saveBtn').onclick = async () => {
   finally { $('#saveBtn').disabled = false }
 };
 $('#pvBtn').onclick = async () => {
-  const q = new URLSearchParams({ tone: $('#pvTone').value, formality: $('#pvForm').value, length: $('#pvLength').value, languages: $('#pvLangs').value.replace(/\s/g, '') });
+  const q = new URLSearchParams({ ...($('#pvTone').value.trim() && { toneOfVoice: $('#pvTone').value.trim() }), formality: $('#pvForm').value, length: $('#pvLength').value, languages: $('#pvLangs').value.replace(/\s/g, '') });
   try {
     const p = await api('GET', '/v1/admin/prompt?' + q);
     $('#pvWriting').textContent = p.writing; $('#pvResearch').textContent = p.research; $('#pvOut').classList.remove('hide');
@@ -505,12 +527,23 @@ $('#pvBtn').onclick = async () => {
 addEventListener('beforeunload', e => { if (dirty()) e.preventDefault() });
 
 /* ── trying it ── */
+// the tool's tone-of-voice presets (src/features/brand/tone-presets.ts in the tool), to try them here
+const TOOL_TONES = [
+  ['Friendly expert', 'Write like a friendly expert who knows the products inside out. Be warm, personal and encouraging, and address the customer informally. Share practical knowledge with confidence, explain why something matters, and keep sentences short and clear.'],
+  ['Professional', 'Write in a professional, polite and factual tone. Address the customer formally. Be clear and precise, focus on correct use and expected results, and avoid slang, jokes and exclamation marks.'],
+  ['Playful', 'Write in a playful, upbeat and enthusiastic tone. Address the customer informally. Use light humour and lively wording, and an occasional emoji where it fits. Stay helpful: every tip must still be clear and correct.'],
+  ['Calm & minimal', 'Write in a calm, minimal tone. Use short sentences and only what is essential. No exclamation marks, no emoji, no filler. Let the product and the ritual speak for themselves.'],
+  ['Premium', 'Write in a refined, premium tone. Use sensory, elegant language and highlight craftsmanship, origin and quality. Be understated and confident rather than loud. Address the customer formally.'],
+];
 function fillForm() {
   const s = opts.settings, sel = (id, f) => { $(id).innerHTML = f.options.map(o => `<option value="${o}" ${o === f.default ? 'selected' : ''}>${esc(NAMES[o] || o)}</option>`).join('') };
-  sel('#sTone', s.tone); sel('#sForm', s.formality); sel('#sLength', s.length);
+  sel('#sForm', s.formality); sel('#sLength', s.length);
+  $('#sPreset').innerHTML = '<option value="">Kies een voorbeeld uit de tool…</option>' + TOOL_TONES.map(([n], i) => `<option value="${i}">${esc(n)}</option>`).join('');
   $('#sQuality').innerHTML = opts.qualities.map(q => `<option value="${q.id}" ${q.id === s.quality.default ? 'selected' : ''}>${esc(q.name)}</option>`).join('');
+  $('#sTips').value = s.tipCount.default; $('#sQuestions').value = s.questionCount.default; $('#sAnswers').value = s.answerCount.default;
   $('#sLangs').innerHTML = s.languages.options.map(l => `<label><input type="checkbox" value="${l}" ${s.languages.default.includes(l) ? 'checked' : ''}> ${esc(opts.languages[l])}</label>`).join('');
 }
+$('#sPreset').onchange = e => { if (e.target.value !== '') $('#sTone').value = TOOL_TONES[e.target.value][1] };
 const langsPicked = () => $$('#sLangs input:checked').map(i => i.value);
 function costLine() {
   if (!opts) return;
@@ -534,77 +567,64 @@ async function follow(job) {
   return job;
 }
 
+const lines = id => $(id).value.split('\n').map(x => x.trim()).filter(Boolean);
 $('#writeBtn').onclick = async () => {
-  const product = Object.fromEntries(Object.entries({ url: $('#pUrl').value.trim(), name: $('#pName').value.trim(), brand: $('#pBrand').value.trim(), description: $('#pDesc').value.trim() }).filter(([, v]) => v));
-  if (!product.url) return say($('#tryMsg'), 'Vul de productpagina (url) in.', 'bad');
-  const settings = { languages: langsPicked(), tone: $('#sTone').value, formality: $('#sForm').value, quality: $('#sQuality').value, length: $('#sLength').value, ...($('#sStyle').value.trim() && { style: $('#sStyle').value.trim() }) };
+  const val = id => $(id).value.trim();
+  const product = Object.fromEntries(Object.entries({ url: val('#pUrl'), name: val('#pName'), brand: val('#pBrand'), sku: val('#pSku'), description: val('#pDesc') }).filter(([, v]) => v));
+  if (!product.url && !(product.name && product.description)) return say($('#tryMsg'), 'Vul een naam en beschrijving in, of een productpagina.', 'bad');
+  const brand = { story: val('#bStory') || null, audience: val('#bAudience') || null, usps: lines('#bUsps'), expertise: lines('#bExpertise').map(body => ({ body })) };
+  const settings = { languages: langsPicked(), formality: $('#sForm').value, quality: $('#sQuality').value, length: $('#sLength').value,
+    tipCount: Number($('#sTips').value), questionCount: Number($('#sQuestions').value), answerCount: Number($('#sAnswers').value), ...(val('#sTone') && { toneOfVoice: val('#sTone') }) };
   if (!$('#useTest').checked && st.mode === 'live' && !confirm($('#costLine').textContent + '\n\nDoorgaan?')) return;
   say($('#tryMsg'), ''); $('#writeBtn').disabled = true;
   try {
-    const job = await follow(await api('POST', '/v1/content', { product, shop: { name: $('#sName').value.trim() || null }, settings, reference: 'beheerpagina' }, callKey()));
+    const job = await follow(await api('POST', '/v1/content', { product, shop: { name: val('#sName') || null, url: val('#sUrl') || null }, brand, settings, reference: 'beheerpagina' }, callKey()));
     current = job.result; lang = current.languages[0]; showResult();
     if (innerWidth < 980) $('#result').scrollIntoView({ behavior: 'smooth' });
   } catch (e) { say($('#tryMsg'), e.message, 'bad') }
   finally { $('#writeBtn').disabled = false; refresh() }
 };
 
-/* the result, grouped by where it ends up in the guide */
-const t = v => v && typeof v === 'object' && !Array.isArray(v) ? v[lang] ?? '' : v ?? '';
-const cite = src => (src || []).map(id => `<a class="src ${id.startsWith('w') ? 'shop' : ''}" href="#src-${esc(id)}" title="${esc(current.sources.find(s => s.id === id)?.claim || '')}">${esc(id)}</a>`).join('');
+/* the result: the three guides, as the tool stores them */
+const MOMENT_INFO = { ordered: ['Besteld', 'Bedankpagina, direct na het afrekenen'], in_transit: ['Onderweg', 'Verzendmail: wat de klant alvast kan doen'], delivered: ['Bezorgd', 'Bezorgmail: de eerste vijf minuten'] };
+const cite = key => (current.citations[key] || []).map(id => `<a class="src ${/^[ws]/.test(id) ? 'shop' : ''}" href="#src-${esc(id)}" title="${esc(current.sources.find(s => s.id === id)?.claim || '')}">${esc(id)}</a>`).join('');
 function piece(path, label, body, cls = '') {
   const issues = current.quality.issues.filter(i => i.piece === path);
   return `<div class="piece ${cls} ${issues.some(i => i.level === 'error') ? 'flag' : ''}" data-piece="${path}">
     <div class="ph"><span class="lbl">${esc(label)}</span><button class="edit">Wijzig</button></div>
     ${body}${issues.map(i => `<div class="issue ${i.level}">${i.level === 'error' ? '✕' : '!'} ${esc(i.message)}</div>`).join('')}</div>`;
 }
-const tipBody = x => `<div class="t">${esc(t(x.title ?? x.lead))}${cite(x.src)}</div><div>${esc(t(x.text))}</div>`;
-function group(id, title, sub, inner, count) {
-  return { id, title, count, html: `<section class="card group" id="g-${id}"><div class="gh"><div><h2>${title}</h2><p>${sub}</p></div></div>${inner}</section>` };
-}
 function showResult() {
-  const c = current.content, q = current.quality;
+  const q = current.quality;
   $('#result').classList.remove('hide'); $('#emptyBox').classList.add('hide');
   $('#resTitle').textContent = current.product.name || current.product.url;
-  const used = current.sources.filter(s => s.used).length;
+  const used = current.sources.filter(s => s.used).length, set = current.settings;
   $('#resMeta').innerHTML = [current.test ? '<span class="pill test">testteksten</span>' : `<span class="pill live">${euro(current.costEUR)}</span>`,
-    esc(NAMES[current.settings.quality] || current.settings.quality), esc(NAMES[current.settings.tone]), esc(NAMES[current.settings.formality]), `${used} bronnen gebruikt`,
-    current.revised ? `gewijzigd: ${esc(current.revised.piece)}` : ''].filter(Boolean).join(' · ');
+    esc(NAMES[set.quality] || set.quality), esc(NAMES[set.formality]), `${used} bronnen gebruikt`, current.revised ? `gewijzigd: ${esc(current.revised.piece)}` : ''].filter(Boolean).join(' · ');
   $('#langSeg').innerHTML = current.languages.map(l => `<button data-lang="${l}" class="${l === lang ? 'on' : ''}">${l.toUpperCase()}</button>`).join('');
+  const moment = i => i.piece.split('.')[0];
   $('#qualityBox').innerHTML = `<div class="note ${q.errors ? 'bad' : q.warnings ? 'warn' : 'ok'}">${q.errors ? `<b>${q.errors} regel${q.errors > 1 ? 's' : ''} overtreden</b>` : '<b>Voldoet aan de AmplifAI-regels</b>'}${q.warnings ? ` · ${q.warnings} opmerking${q.warnings > 1 ? 'en' : ''}` : ''}${q.issues.length ? ': ' + q.issues.map(i => `<a href="#" data-goto="${esc(i.piece)}">${esc(i.piece)}</a>`).join(', ') : ''} · <a href="#instructies/i-check">wat wordt er gecontroleerd?</a></div>`;
   $('#json').textContent = JSON.stringify(current, null, 2);
 
-  const G = [];
-  G.push(group('welkom', 'Bedankpagina', 'Het eerste wat de klant ziet, direct na betalen.', `<div class="pieces">
-    ${piece('intro', 'Titel en kopregel', `<div class="big">${esc(t(c.intro.title))}</div><div>${esc(t(c.intro.headline))}</div>`)}
-    ${piece('intro', 'Uitnodiging om de gids te openen', `<div class="t">${esc(t(c.intro.teaser.headline))}</div><div class="mute">${esc(t(c.intro.teaser.line))}</div>`)}
-    ${piece('story', 'Het merkverhaal', `<div>${esc(t(c.story.text))}${cite(c.story.src)}</div>`)}
-    ${piece('fact', 'Wist je dat', `<div>${esc(t(c.fact.text))}${cite(c.fact.src)}</div>`)}
-  </div>`, 4));
-  G.push(group('product', 'Over het product', 'Wat het bijzonder maakt, en hoe het lang mooi blijft.', `
-    <h3 style="margin-bottom:8px">Bijzonder</h3><div class="pieces two">${c.special.map((x, i) => piece(`special.${i}`, `Bijzonder ${i + 1}`, tipBody(x))).join('')}</div>
-    <h3 style="margin:16px 0 8px">Onderhoud</h3><div class="pieces two">${c.care.map((x, i) => piece(`care.${i}`, `Onderhoud ${i + 1}`, tipBody(x))).join('')}</div>`, c.special.length + c.care.length));
-  G.push(group('eerste', 'De eerste dagen', 'Wat normaal is, voordat de klant het zich afvraagt.', `<div class="pieces two">${c.expect.map((x, i) => piece(`expect.${i}`, `Wat is normaal ${i + 1}`, tipBody(x))).join('')}</div>`, c.expect.length));
-  G.push(group('vragen', 'Vragen en tips', 'Eerst geven, dan vragen: elk antwoord verandert wat de klant daarna ziet.', `
-    <div class="pieces">
-      ${piece('experience', 'Ervaringsvraag', `<div class="t">${esc(t(c.experience.question))}</div><div class="row small" style="margin-top:4px">${['new', 'regular', 'expert'].map(k => `<span class="pill">${esc(t(c.experience[k]))}</span>`).join('')}</div>`)}
-      ${piece('question', 'De vraag', `<div class="small mute">${esc(t(c.question.eyebrow))}</div><div class="t">${esc(t(c.question.title))}</div><div class="mute">${esc(t(c.question.sub))}</div>`)}
-    </div>
-    <h3 style="margin:16px 0 8px">Antwoorden</h3>
-    <div class="pieces two">${c.question.options.map((o, i) => piece(`question.options.${i}`, `Antwoord ${i + 1}`, `
-      <div class="t">${esc(t(o.label))} <span class="${o.ok ? 'badge-ok' : 'badge-check'} small">${o.ok ? '✓' : 'even checken'}</span></div>
-      ${t(o.note) ? `<div class="small mute">${esc(t(o.note))}</div>` : ''}
-      <div class="opt"><div class="small mute">Resultaat</div><div><b>${esc(t(o.result.headline))}</b> ${o.result.lines.map(l => esc(t(l))).join(' ')}${cite(o.src)}</div></div>
-      <div class="opt"><div class="small mute">Tip die erbij hoort</div><div><b>${esc(t(o.tip.title))}</b> ${esc(t(o.tip.text))}</div><div class="small mute">${esc(t(o.tip.why))}</div></div>`)).join('')}</div>
-    <h3 style="margin:16px 0 8px">Tips per ervaringsniveau</h3>
-    <div class="levels">${[['new', 'Nieuw'], ['regular', 'Ervaren'], ['expert', 'Expert']].map(([lv, name]) => `<div><h4>${name} <span class="mute small">· ${esc(t(c.experience[lv]))}</span></h4><div class="pieces">${c.tips[lv].map((x, i) => piece(`tips.${lv}.${i}`, `Tip ${i + 1}`, tipBody(x))).join('')}</div></div>`).join('')}</div>`,
-    2 + c.question.options.length + c.tips.new.length + c.tips.regular.length + c.tips.expert.length));
-  G.push(group('mails', 'E-mails', 'Voor de verzendmail en de bezorgmail.', `<div class="pieces two">
-    ${[['whileYouWait', 'Verzendmail'], ['firstMinutes', 'Bezorgmail']].map(([k, name]) => piece(k, name, `<div class="t">${esc(t(c[k].title))}</div><ul>${c[k].items.map(x => `<li><b>${esc(t(x.lead))}</b> ${esc(t(x.text))}${cite(x.src)}</li>`).join('')}</ul>`)).join('')}
-  </div>`, 2));
+  const G = Object.entries(MOMENT_INFO).map(([m, [title, sub]]) => {
+    const g = current.guides[lang][m];
+    const target = (a, qi) => a.next === 'end' ? 'naar de tips' : a.next === 'next' ? (qi + 1 < g.questions.length ? 'naar de volgende vraag' : 'naar de tips') : `naar vraag ${g.questions.findIndex(x => x.id === a.next) + 1}`;
+    const own = current.quality.issues.filter(i => i.piece === m);
+    const html = `<section class="card group" id="g-${m}"><div class="gh"><div><h2>${title}</h2><p>${sub}</p></div><button class="edit" data-whole="${m}">Hele gids opnieuw</button></div>
+      ${own.map(i => `<div class="issue ${i.level}" style="margin:-4px 0 10px">${i.level === 'error' ? '✕' : '!'} ${esc(i.message)}</div>`).join('')}
+      <div class="pieces">
+        ${piece(`${m}.intro`, 'Intro', `<div>${esc(g.intro)}${cite(`${m}.intro`)}</div>`)}
+        ${g.questions.map((qq, qi) => piece(`${m}.questions.${qi}`, `Vraag ${qi + 1}`, `<div class="t">${esc(qq.question)}</div>
+          <div class="pieces" style="margin-top:8px">${qq.answers.map((a, ai) => piece(`${m}.questions.${qi}.answers.${ai}`, `Antwoord ${ai + 1} · ${target(a, qi)}`, `<div class="t">${esc(a.label)}${cite(`${m}.questions.${qi}.answers.${ai}`)}</div>${a.reply ? `<div class="mute">${esc(a.reply)}</div>` : '<div class="small mute">geen reactie</div>'}`)).join('')}</div>`)).join('')}
+      </div>
+      <h3 style="margin:16px 0 8px">Tips</h3>
+      <div class="pieces two">${g.tips.map((t, i) => piece(`${m}.tips.${i}`, `Tip ${i + 1}`, `<div>${esc(t)}${cite(`${m}.tips.${i}`)}</div>`)).join('')}</div></section>`;
+    return { id: m, title, count: g.questions.length + g.tips.length + 1, html };
+  });
   const dom = u => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return '' } };
-  G.push(group('bronnen', 'Bronnen', 'Elk feit heeft een bron. Grijs: gevonden, maar niet gebruikt in de tekst.', `<div class="sources"><ol>${current.sources.map(s => `
-    <li id="src-${esc(s.id)}" class="${s.used ? '' : 'unused'}"><span><span class="src ${s.id.startsWith('w') ? 'shop' : ''}">${esc(s.id)}</span></span>
-    <div>${esc(s.claim)}<div class="dom">${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || dom(s.url))}</a> · ${esc(dom(s.url))}` : esc(s.title || '')}</div></div></li>`).join('')}</ol></div>`, current.sources.length));
+  G.push({ id: 'bronnen', title: 'Bronnen', count: current.sources.length, html: `<section class="card group" id="g-bronnen"><div class="gh"><div><h2>Bronnen</h2><p>f: gevonden in het onderzoek · s: merkkennis van de shop · w: wens van de shop. Grijs: niet gebruikt.</p></div></div><div class="sources"><ol>${current.sources.map(s => `
+    <li id="src-${esc(s.id)}" class="${s.used ? '' : 'unused'}"><span><span class="src ${/^[ws]/.test(s.id) ? 'shop' : ''}">${esc(s.id)}</span></span>
+    <div>${esc(s.claim)}<div class="dom">${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || dom(s.url))}</a> · ${esc(dom(s.url))}` : esc(s.title || '')}</div></div></li>`).join('')}</ol></div></section>` });
 
   $('#chips').innerHTML = G.map(g => `<a href="#g-${g.id}">${g.title}<span class="n">${g.count}</span></a>`).join('');
   $('#readView').innerHTML = G.map(g => g.html).join('');
@@ -622,20 +642,25 @@ $('#qualityBox').onclick = e => {
   el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 };
 $('#readView').onclick = async e => {
-  const p = e.target.closest('.piece');
+  const whole = e.target.closest('[data-whole]');
+  const box = e.target.closest('.wish');
+  const p = whole ? whole.closest('.group') : (box ? box.parentElement : e.target.closest('.piece'));
   if (!p) return;
   if (e.target.classList.contains('edit')) {
-    if (p.querySelector('.wish')) return p.querySelector('.wish').remove();
-    p.insertAdjacentHTML('beforeend', `<div class="wish"><input placeholder="Wat moet er anders? Bijv. korter, of noem dat hij waterdicht is"><button class="primary">Herschrijf</button></div>`);
-    return p.querySelector('.wish input').focus();
+    const path = whole ? whole.dataset.whole : p.dataset.piece;
+    const own = [...p.children].find(c => c.classList?.contains('wish'));
+    if (own) return own.remove();
+    p.insertAdjacentHTML('beforeend', `<div class="wish" data-for="${path}"><input placeholder="Wat moet er anders? Bijv. korter, of noem dat hij waterdicht is"><button class="primary">Herschrijf</button></div>`);
+    return [...p.children].at(-1).querySelector('input').focus();
   }
-  if (e.target.matches('.wish button') || (e.type === 'keydown')) {
-    const wish = p.querySelector('.wish input').value.trim();
+  if (box && e.target.matches('.wish button')) {
+    const wish = box.querySelector('input').value.trim();
     e.target.disabled = true;
     try {
-      const job = await follow(await api('POST', '/v1/content/revise', { content: current, piece: p.dataset.piece, wish }, callKey()));
+      const job = await follow(await api('POST', '/v1/content/revise', { content: current, piece: box.dataset.for, wish }, callKey()));
       current = job.result; showResult();
-      $(`.piece[data-piece="${CSS.escape(job.result.revised.piece)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const done = job.result.revised.piece;
+      (document.querySelector(`.piece[data-piece="${CSS.escape(done)}"]`) || document.getElementById('g-' + done))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } catch (err) { say($('#tryMsg'), err.message, 'bad'); e.target.disabled = false }
     finally { refresh() }
   }

@@ -1,10 +1,11 @@
 openapi: 3.1.0
 info:
   title: AmplifAI content engine
-  version: 2.0.0
+  version: 3.0.0
   description: |
-    Writes the content for AmplifAI product guides. The AmplifAI tool sends a product and the shop's settings;
-    the engine researches, writes, checks and returns the content. The tool stores it and builds the guide.
+    Writes the guides for AmplifAI products. The AmplifAI tool sends a product, the shop's brand knowledge and settings;
+    the engine researches, writes the three guides (ordered, in_transit, delivered) in the tool's own guide format
+    (guideContentSchema), checks them and returns them. The tool saves them with save_guide_content.
     Writing and revising run as jobs: answer 202 with the job, then poll GET /v1/content/{id}, pass callbackUrl,
     or pass wait to get 200 with the finished job.
     Errors are `{ "error": "…", "field"?: "…", "code"?: "…" }` with a fitting status code (messages in Dutch).
@@ -31,7 +32,7 @@ paths:
   /v1/content:
     post:
       tags: [tool]
-      summary: Write the content for one product
+      summary: Write the three guides for one product
       requestBody:
         required: true
         content: { application/json: { schema: { $ref: '#/components/schemas/WriteRequest' } } }
@@ -47,7 +48,8 @@ paths:
       tags: [tool]
       summary: Rewrite one piece of earlier content, with the shop's wish
       description: |
-        The result is the whole content with the piece rewritten; the tool stores it in place of the old one.
+        The result is the whole set with the piece rewritten; the tool stores it in place of the old one. Question and
+        answer ids and each answer's next stay.
         The wish is added to the sources as a fact (w1, w2, …) so what the shop says about its own product can be cited.
         The AmplifAI rules always win over the wish.
       requestBody:
@@ -62,7 +64,7 @@ paths:
   /v1/content/check:
     post:
       tags: [tool]
-      summary: Hold content against the AmplifAI rules (free, instant)
+      summary: Hold guides against the AmplifAI rules and the tool's limits (free, instant)
       requestBody:
         required: true
         content: { application/json: { schema: { type: object, required: [content], properties: { content: { $ref: '#/components/schemas/Result' } } } } }
@@ -75,7 +77,7 @@ paths:
       summary: A job and, when done, its result (kept for KEEP_DAYS, default 7)
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
-        - { name: lang, in: query, description: "Every text as a plain string in this language", schema: { type: string, enum: [nl, en, de, fr] } }
+        - { name: lang, in: query, description: "Only this language's guides", schema: { type: string, enum: [nl, en, de, fr] } }
       responses:
         '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Job' } } } }
         '404': { description: "Unknown, or older than KEEP_DAYS" }
@@ -112,30 +114,28 @@ paths:
                     maxSearches: { type: integer, minimum: 0, maximum: 15, default: 8 }
                     maxFetches: { type: integer, minimum: 0, maximum: 10, default: 6 }
                     blockedDomains: { type: array, items: { type: string } }
-                    specialCount: { type: integer, minimum: 1, maximum: 4, default: 2 }
-                    careCount: { type: integer, minimum: 1, maximum: 5, default: 3 }
-                    headlineWords: { type: integer, minimum: 4, maximum: 12, default: 8 }
                     effort: { type: string, enum: [low, medium, high, xhigh], default: high }
                     extra: { type: string, maxLength: 2000, description: Extra instruction for all writing }
                     rules: { type: array, items: { type: string }, maxItems: 30, description: The fixed rules in every writing prompt }
                     researchBrief: { type: string, description: "The research instruction; {factsMin}, {factsMax}, {questionIdeas} are filled in" }
                     writerIntro: { type: string }
                     shortLength: { type: string }
-                    toneWarm: { type: string }
-                    toneNeutral: { type: string }
-                    toneExpert: { type: string }
-                    tonePlayful: { type: string }
-                    pieceIntro: { type: string, description: "One line per piece; also pieceStory, pieceSpecial, pieceExpect, pieceFact, pieceCare, pieceExperience, pieceQuestion, pieceTips, pieceWhileYouWait, pieceFirstMinutes" }
-                    checks: { type: object, description: "Per check (missing, sell, delivery, returns, form, source, answer, keys, long, headline, count, repeat): error, warn or off", additionalProperties: { type: string, enum: [error, warn, off] } }
+                    defaultTone: { type: string, description: Used when the tool sends no toneOfVoice }
+                    momentOrdered: { type: string }
+                    momentInTransit: { type: string }
+                    momentDelivered: { type: string }
+                    pieceIntro: { type: string }
+                    pieceQuestions: { type: string, description: "{questionCount} and {answerCount} are filled in" }
+                    pieceTips: { type: string, description: "{tipCount} is filled in" }
+                    checks: { type: object, description: "Per check (missing, sell, delivery, returns, form, source, fit, flow, long, count, repeat): error, warn or off", additionalProperties: { type: string, enum: [error, warn, off] } }
                     sellWords: { type: array, items: { type: string } }
                     deliveryWords: { type: array, items: { type: string }, description: "# stands for a number" }
                     returnsWords: { type: array, items: { type: string } }
-                    maxHeadline: { type: integer }
-                    maxTitle: { type: integer }
-                    maxLead: { type: integer }
-                    maxStory: { type: integer }
-                    maxText: { type: integer }
-                    maxLine: { type: integer }
+                    maxIntro: { type: integer, default: 400 }
+                    maxTip: { type: integer, default: 280 }
+                    maxQuestion: { type: integer, default: 120 }
+                    maxAnswer: { type: integer, default: 60 }
+                    maxReply: { type: integer, default: 240 }
                 defaults: { $ref: '#/components/schemas/Settings' }
                 levels:
                   type: object
@@ -144,7 +144,7 @@ paths:
   /v1/admin/prompt:
     get:
       tags: [admin]
-      summary: The full research and writing instruction exactly as Claude gets it, for shop settings in the query (e.g. tone=playful&languages=nl,en)
+      summary: The full research and writing instruction exactly as Claude gets it, for shop settings in the query (e.g. toneOfVoice=…&languages=nl,en)
       responses: { '200': { description: "{ settings, research, writing }" } }
   /v1/admin/stop:
     post:
@@ -156,58 +156,49 @@ components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, description: "TOOL_API_KEY, TOOL_TEST_KEY or ADMIN_API_KEY" }
   schemas:
-    Text:
-      type: object
-      description: 'One text in every language of the result, e.g. { "nl": "…", "en": "…" }'
-      additionalProperties: { type: string }
-    Src: { type: array, items: { type: string }, description: 'Ids of the sources this rests on, e.g. ["f3"]' }
-    Icon: { type: string, description: "A suggested icon from GET /v1/options icons; the tool may ignore it" }
-    Point:
-      type: object
-      properties: { icon: { $ref: '#/components/schemas/Icon' }, lead: { $ref: '#/components/schemas/Text' }, text: { $ref: '#/components/schemas/Text' }, src: { $ref: '#/components/schemas/Src' } }
-    Tip:
-      type: object
-      properties: { icon: { $ref: '#/components/schemas/Icon' }, title: { $ref: '#/components/schemas/Text' }, text: { $ref: '#/components/schemas/Text' }, src: { $ref: '#/components/schemas/Src' } }
-    Moment:
-      type: object
-      properties: { title: { $ref: '#/components/schemas/Text' }, items: { type: array, items: { $ref: '#/components/schemas/Point' } } }
-
     Settings:
       type: object
-      description: The shop's toggles. Missing ones get the default from GET /v1/options.
+      description: The shop's settings. Missing ones get the default from GET /v1/options. Counts are per moment.
       properties:
-        languages: { type: array, items: { type: string, enum: [nl, en, de, fr] }, minItems: 1, default: [nl, en], description: The first is written first and most carefully }
+        languages: { type: array, items: { type: string, enum: [nl, en, de, fr] }, minItems: 1, default: [nl], description: The first is written first and most carefully }
         quality: { type: string, enum: [basis, plus, premium], default: basis }
-        tone: { type: string, enum: [warm, neutral, expert, playful], default: warm }
-        formality: { type: string, enum: [informal, formal], default: informal, description: "je/du/tu or u/Sie/vous" }
+        toneOfVoice: { type: string, maxLength: 2000, description: "The shop's tone of voice as the tool stores it (brand_profiles.tone_of_voice). Empty: AmplifAI's default tone" }
+        formality: { type: string, enum: [auto, informal, formal], default: auto, description: "auto reads it from the tone of voice (\"address the customer formally\" means u/uw)" }
         length: { type: string, enum: [standard, short], default: standard }
-        tipCount: { type: integer, minimum: 2, maximum: 4, default: 3, description: Tips per experience level }
-        answerCount: { type: integer, minimum: 3, maximum: 4, default: 4 }
-        expectCount: { type: integer, minimum: 2, maximum: 3, default: 2 }
-        emailItems: { type: integer, minimum: 2, maximum: 4, default: 3 }
-        style: { type: string, maxLength: 400, description: "The shop's style wish; it cannot change the AmplifAI rules" }
+        tipCount: { type: integer, minimum: 1, maximum: 5, default: 3 }
+        questionCount: { type: integer, minimum: 0, maximum: 3, default: 2 }
+        answerCount: { type: integer, minimum: 2, maximum: 5, default: 3 }
 
     Product:
       type: object
-      required: [url]
-      description: What the tool knows. Whatever is missing is read from the product page.
+      description: What the tool knows. name and description, or a url the engine can read them from.
       properties:
-        url: { type: string, format: uri }
         name: { type: string }
+        description: { type: string, maxLength: 20000 }
+        url: { type: string, format: uri, description: Optional; the engine reads the page too when name or description is thin }
+        sku: { type: string }
         brand: { type: string }
         category: { type: string }
         price: { type: string, example: "€89,95" }
-        description: { type: string, maxLength: 8000 }
         specs: { type: array, items: { type: string } }
         variants: { type: array, items: { type: string } }
         image: { type: string, format: uri }
-        sku: { type: string }
         gtin: { type: string }
+
+    Brand:
+      type: object
+      description: "The shop's brand knowledge (the tool's brand_about, brand_expertise, brand_sources). Becomes facts s1, s2, … cited as the shop's word."
+      properties:
+        story: { type: string }
+        audience: { type: string }
+        usps: { type: array, items: { type: string }, maxItems: 5 }
+        expertise: { type: array, items: { type: object, properties: { title: { type: string }, body: { type: string }, sourceId: { type: string }, url: { type: string }, enabled: { type: boolean } } } }
+        sources: { type: array, items: { type: object, properties: { id: { type: string }, label: { type: string }, url: { type: string } } } }
 
     JobOptions:
       type: object
       properties:
-        reference: { type: string, maxLength: 200, description: "The tool's own id; comes back on the job" }
+        reference: { type: string, maxLength: 200, description: "The tool's own id (e.g. the product id); comes back on the job" }
         callbackUrl: { type: string, format: uri, description: "POSTed { event: content.done|content.failed|content.cancelled, at, job } when finished, signed in x-amplifai-signature (HMAC-SHA256 with the callback secret)" }
         wait: { oneOf: [{ type: boolean }, { type: number }], description: "Answer when finished: true waits up to 90 s, a number up to that many seconds" }
 
@@ -219,6 +210,7 @@ components:
           properties:
             product: { $ref: '#/components/schemas/Product' }
             shop: { type: object, properties: { name: { type: string }, url: { type: string } } }
+            brand: { $ref: '#/components/schemas/Brand' }
             settings: { $ref: '#/components/schemas/Settings' }
 
     ReviseRequest:
@@ -228,7 +220,7 @@ components:
           required: [content, piece]
           properties:
             content: { $ref: '#/components/schemas/Result' }
-            piece: { type: string, description: 'Path of the piece, e.g. "story", "tips.new.1", "question.options.2"; see GET /v1/options pieces' }
+            piece: { type: string, description: 'ordered | in_transit | delivered (a whole guide), ordered.intro, ordered.tips.1, ordered.questions.0, ordered.questions.0.answers.2' }
             wish: { type: string, maxLength: 600, description: "The shop's words; empty for simply another version" }
             settings: { $ref: '#/components/schemas/Settings', description: "Optional new settings for this rewrite; languages must stay the same" }
 
@@ -250,77 +242,69 @@ components:
 
     Result:
       type: object
-      description: What the tool stores. Send it back whole for a revision or a check.
+      description: What the tool stores. Send it back whole (with the current texts in guides) for a revision or a check.
       properties:
-        formatVersion: { const: 2 }
+        formatVersion: { const: 3 }
         test: { type: boolean }
         languages: { type: array, items: { type: string } }
         settings: { $ref: '#/components/schemas/Settings' }
-        product: { type: object, description: "The product as the engine used it: url, name, brand, category, price, image, variants" }
+        product: { type: object, description: "The product as the engine used it: url, name, brand, category, price, image, variants, sku" }
         shop: { type: object }
-        content: { $ref: '#/components/schemas/Content' }
+        guides:
+          type: object
+          description: "Per language, per moment: the tool's GuideContent, ready for save_guide_content(product_id, moment, content)"
+          additionalProperties:
+            type: object
+            properties:
+              ordered: { $ref: '#/components/schemas/ToolGuide' }
+              in_transit: { $ref: '#/components/schemas/ToolGuide' }
+              delivered: { $ref: '#/components/schemas/ToolGuide' }
+        citations:
+          type: object
+          description: 'Source ids per text: "ordered.intro", "ordered.tips.0", "ordered.questions.0.answers.1"'
+          additionalProperties: { type: array, items: { type: string } }
         sources:
           type: array
           items:
             type: object
             properties:
-              id: { type: string, description: "f1, f2, … from research; w1, w2, … from the shop's wishes" }
+              id: { type: string, description: "f1, f2, … from research; s1, s2, … from the shop's brand knowledge; w1, w2, … from the shop's wishes" }
               category: { type: string }
               claim: { type: string }
-              url: { type: string }
+              url: { type: [string, 'null'], description: null for facts from the tool's own product text }
               title: { type: string }
-              used: { type: boolean, description: Cited by the content }
+              used: { type: boolean, description: Cited by a text }
         quality: { $ref: '#/components/schemas/Quality' }
         costEUR: { type: number, description: "What this job cost AmplifAI at Anthropic" }
         research: { type: object, description: "Engine notes for revisions; send back unchanged" }
         revised: { type: object, properties: { piece: { type: string }, wish: { type: [string, 'null'] } } }
         createdAt: { type: string }
 
-    Content:
+    ToolGuide:
       type: object
-      description: The pieces. The tool decides where each goes in the guide.
+      description: "Exactly the tool's guideContentSchema (src/features/guides/schemas.ts in the tool)"
       properties:
-        shortName: { $ref: '#/components/schemas/Text' }
-        intro:
-          type: object
-          properties:
-            title: { $ref: '#/components/schemas/Text' }
-            headline: { $ref: '#/components/schemas/Text', description: At most 8 words }
-            teaser: { type: object, description: Invites the customer to open the guide, properties: { headline: { $ref: '#/components/schemas/Text' }, line: { $ref: '#/components/schemas/Text' } } }
-        story: { type: object, description: The brand story, properties: { text: { $ref: '#/components/schemas/Text' }, src: { $ref: '#/components/schemas/Src' } } }
-        special: { type: array, items: { $ref: '#/components/schemas/Tip' }, description: What makes this product special }
-        expect: { type: array, items: { $ref: '#/components/schemas/Point' }, description: What is normal in the first days }
-        fact: { type: object, properties: { icon: { $ref: '#/components/schemas/Icon' }, text: { $ref: '#/components/schemas/Text' }, src: { $ref: '#/components/schemas/Src' } } }
-        care: { type: array, items: { $ref: '#/components/schemas/Tip' } }
-        experience:
-          type: object
-          properties: { question: { $ref: '#/components/schemas/Text' }, new: { $ref: '#/components/schemas/Text' }, regular: { $ref: '#/components/schemas/Text' }, expert: { $ref: '#/components/schemas/Text' } }
-        question:
-          type: object
-          properties:
-            eyebrow: { $ref: '#/components/schemas/Text' }
-            title: { $ref: '#/components/schemas/Text' }
-            sub: { $ref: '#/components/schemas/Text' }
-            options:
-              type: array
-              items:
-                type: object
-                properties:
-                  key: { type: string }
-                  label: { $ref: '#/components/schemas/Text' }
-                  note: { $ref: '#/components/schemas/Text' }
-                  ok: { type: boolean, description: false when the customer should check or do something first }
-                  result: { type: object, properties: { headline: { $ref: '#/components/schemas/Text' }, lines: { type: array, items: { $ref: '#/components/schemas/Text' } } } }
-                  tip: { type: object, properties: { icon: { $ref: '#/components/schemas/Icon' }, title: { $ref: '#/components/schemas/Text' }, text: { $ref: '#/components/schemas/Text' }, why: { $ref: '#/components/schemas/Text' } } }
-                  src: { $ref: '#/components/schemas/Src' }
-        tips:
-          type: object
-          properties:
-            new: { type: array, items: { $ref: '#/components/schemas/Tip' } }
-            regular: { type: array, items: { $ref: '#/components/schemas/Tip' } }
-            expert: { type: array, items: { $ref: '#/components/schemas/Tip' } }
-        whileYouWait: { $ref: '#/components/schemas/Moment', description: For the shipping email }
-        firstMinutes: { $ref: '#/components/schemas/Moment', description: For the delivery email }
+        intro: { type: string, maxLength: 2000 }
+        tips: { type: array, minItems: 1, maxItems: 5, items: { type: string, maxLength: 1000 } }
+        questions:
+          type: array
+          maxItems: 3
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              question: { type: string, maxLength: 300 }
+              answers:
+                type: array
+                minItems: 2
+                maxItems: 5
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    label: { type: string, maxLength: 200 }
+                    reply: { type: [string, 'null'], maxLength: 500 }
+                    next: { type: string, description: '"next", "end", or the id of a later question' }
 
     Quality:
       type: object
@@ -333,20 +317,20 @@ components:
           items:
             type: object
             properties:
-              piece: { type: string, description: The piece's path }
+              piece: { type: string, description: "The piece's path (as in citations), or a whole moment" }
               level: { type: string, enum: [error, warn] }
-              code: { type: string, enum: [missing, sell, delivery, returns, form, source, long, headline, count, answer, keys, repeat] }
+              code: { type: string, enum: [missing, sell, delivery, returns, form, source, fit, flow, long, count, repeat] }
               message: { type: string }
 
     Options:
       type: object
       properties:
-        formatVersion: { const: 2 }
+        formatVersion: { const: 3 }
         settings: { type: object, description: "Per setting: type, label, help, default, options, min, max" }
         languages: { type: object, additionalProperties: { type: string } }
         qualities: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string }, blurb: { type: string }, estimatedCostEUR: { type: number } } } }
+        moments: { type: array, items: { type: object, properties: { id: { type: string, enum: [ordered, in_transit, delivered] }, label: { type: string } } } }
         pieces: { type: array, items: { type: object, properties: { path: { type: string }, label: { type: string } } } }
-        icons: { type: array, items: { type: string } }
 
     Budget:
       type: object
